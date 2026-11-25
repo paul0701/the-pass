@@ -1,0 +1,89 @@
+// Chef name validation and profanity filter, copied from Rum to Riches.
+const LEET = { 0: "o", 1: "i", 3: "e", 4: "a", 5: "s", 7: "t", 8: "b", "@": "a", $: "s", "!": "i", "|": "i" };
+
+// Banned anywhere inside the name (spaces/punctuation removed first).
+const BANNED_ANYWHERE = [
+  "fuck", "fuk", "shit", "cunt", "bitch", "nigg", "niga", "faggot", "slut", "whore", "pussy", "rapist",
+  "nazi", "hitler", "asshole", "bastard", "wank", "twat", "retard", "kike", "penis", "vagina", "porn",
+  "molest", "paedo", "incest", "jizz", "dildo", "boob", "tranny", "wetback", "killyourself", "motherf",
+  "bollock", "kkk", "heilh", "siegheil", "terroris", "genocid", "clit", "anal", "orgasm", "semen", "spunk"
+];
+// Banned only as a whole word (avoids blocking Hancock, Moby Dick, Grapes, Torpedo...).
+const BANNED_WORDS = [
+  "ass", "arse", "cock", "dick", "cum", "sex", "tit", "tits", "fag", "hoe", "rape", "coon", "gook", "dyke",
+  "pedo", "isis", "spic", "spick", "chink", "kys", "nonce", "prick", "piss", "crap", "damn", "negro"
+];
+const RESERVED = [
+  "admin", "administrator", "moderator", "mod", "system", "root", "support", "staff", "official",
+  "netlify", "server", "null", "undefined", "anonymous", "everyone", "headchef", "thepass", "guest"
+];
+
+const normalize = (s) =>
+  s.toLowerCase().split("").map((c) => LEET[c] ?? c).join("");
+
+export function isOffensive(name) {
+  const n = normalize(name);
+  const squashed = n.replace(/[^a-z]/g, "");
+  if (BANNED_ANYWHERE.some((w) => squashed.includes(w))) return true;
+  const words = n.split(/[^a-z]+/).filter(Boolean);
+  return words.some((w) => BANNED_WORDS.includes(w));
+}
+
+export function validateName(raw, { min, max, label }) {
+  if (typeof raw !== "string") return `${label} is required.`;
+  const name = raw.trim().replace(/\s+/g, " ");
+  if (name.length < min || name.length > max) return `${label} must be ${min}-${max} characters.`;
+  if (!/^[A-Za-z][A-Za-z0-9 '\-]*$/.test(name))
+    return `${label} must start with a letter and use only letters, numbers, spaces, apostrophes or hyphens.`;
+  if (/(.)\1{3,}/.test(name)) return `${label} cannot repeat the same character 4+ times.`;
+  if (isOffensive(name)) return `That ${label.toLowerCase()} is not allowed in this kitchen. Pick another.`;
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  if (RESERVED.includes(id)) return `That ${label.toLowerCase()} is reserved.`;
+  return null;
+}
+
+export const cleanName = (raw) => raw.trim().replace(/\s+/g, " ");
+
+const SUFFIXES = ["on Grill", "on Pan", "on Larder", "Sous", "the Chef", "Jr"];
+const MAX_SUGGESTIONS = 3;
+
+// Candidate alternatives for a taken name, most natural first. All fit the length limit and pass validateName.
+export function nameCandidates(raw, opts) {
+  const base = cleanName(raw);
+  const out = [];
+  const seen = new Set([chefId(base)]);
+  const add = (name) => {
+    const n = cleanName(name);
+    const id = chefId(n);
+    if (!id || seen.has(id) || validateName(n, opts)) return;
+    seen.add(id);
+    out.push(n);
+  };
+  for (const suffix of SUFFIXES) {
+    // Only whole-name suffixes: never chop the chef's own name in half.
+    if (base.length + 1 + suffix.length > opts.max) continue;
+    add(`${base} ${suffix}`);
+  }
+  for (const n of [2, 3, 7, 12, 17]) {
+    const tail = String(n);
+    add(`${base.slice(0, opts.max - tail.length - 1).trim()} ${tail}`);
+  }
+  return out;
+}
+
+// Up to three free names. isTaken(name) -> Promise<boolean> checks the real store.
+export async function suggestNames(raw, isTaken, opts = { min: 3, max: 20, label: "Chef name" }) {
+  const found = [];
+  const candidates = nameCandidates(raw, opts);
+  // Check in small parallel batches so a busy night does not mean twenty sequential reads.
+  for (let i = 0; i < candidates.length && found.length < MAX_SUGGESTIONS; i += MAX_SUGGESTIONS) {
+    const batch = candidates.slice(i, i + MAX_SUGGESTIONS);
+    const taken = await Promise.all(batch.map((n) => isTaken(n)));
+    batch.forEach((n, j) => { if (!taken[j] && found.length < MAX_SUGGESTIONS) found.push(n); });
+  }
+  return found;
+}
+
+// Stable key for a chef name: "Sam Chop" -> "sam-chop"
+export const chefId = (raw) =>
+  cleanName(raw).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");

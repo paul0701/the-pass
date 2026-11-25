@@ -1,0 +1,43 @@
+export class HttpError extends Error {
+  // `extra` is merged into the JSON error body (e.g. name suggestions on a 409).
+  constructor(status, message, extra = null) {
+    super(message);
+    this.status = status;
+    this.extra = extra;
+  }
+}
+
+export const json = (status, body) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
+  });
+
+export function requireMethod(req, method) {
+  if (req.method !== method) throw new HttpError(405, `Method ${req.method} not allowed. Use ${method}.`);
+}
+
+export async function readJson(req) {
+  const text = await req.text();
+  if (text.length > 10_000) throw new HttpError(413, "Request body too large.");
+  let body;
+  try {
+    body = JSON.parse(text || "{}");
+  } catch {
+    throw new HttpError(400, "Request body must be valid JSON.");
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    throw new HttpError(400, "Request body must be a JSON object.");
+  return body;
+}
+
+// Wraps a handler so every thrown error becomes a JSON error response.
+export const handle = (fn) => async (req, context) => {
+  try {
+    return await fn(req, context);
+  } catch (err) {
+    if (err && Number.isInteger(err.status)) return json(err.status, { ...(err.extra || {}), ok: false, error: err.message });
+    console.error(err);
+    return json(500, { ok: false, error: "Something went wrong in the kitchen. Please try again." });
+  }
+};
