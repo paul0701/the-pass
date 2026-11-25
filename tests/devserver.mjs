@@ -13,7 +13,7 @@ const { port } = await bs.start();
 process.env.NETLIFY_BLOBS_CONTEXT = Buffer.from(JSON.stringify({ edgeURL: `http://localhost:${port}`, uncachedEdgeURL: `http://localhost:${port}`, token: "t", siteID: "s" })).toString("base64");
 let skew = 0; { const r = Date.now; Date.now = () => r() + skew; }
 const fns = {};
-for (const n of ["auth", "daily", "board", "progress"]) fns["/api/" + n] = (await import(`../netlify/functions/api-${n}.js`)).default;
+for (const n of ["auth", "daily", "progress"]) fns["/api/" + n] = (await import(`../netlify/functions/api-${n}.js`)).default;
 http.createServer(async (req, res) => {
   const u = new URL(req.url, "http://x");
   if (u.pathname === "/__skew") { skew += Number(u.searchParams.get("s")) * 1000; res.end("ok"); return; }

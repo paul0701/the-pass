@@ -2,16 +2,22 @@
 
 A daily kitchen service game. You are the head chef at the pass on a four hour service squeezed into about four
 real minutes: tickets print, you fire dishes to the sections, check on them, and send each table out together while
-the food is still at its best. Everyone gets the same service each day, once.
+the food is still at its best. Everyone gets the same service each day, once, then shares their card. Like Wordle,
+there is no leaderboard: just your result, your streak and your stats.
 
 Single-file HTML5 PWA (vanilla JS, inline SVG, Web Audio). Backend is Netlify Functions plus Netlify Blobs,
 following the Guess the Opening (daily) and Rum to Riches (name and PIN accounts) patterns. See `docs/BRIEF.md`.
+
+## Accounts are optional
+Guests play exactly like Wordle: one go a day, streak and stats kept on the phone. Signing in with a name and PIN
+is optional. It makes the one-go rule hold across browsers and devices, and carries the streak, stats, best scores,
+unlocks, Stage progress and settings between devices.
 
 ## What's in it
 
 | Mode | What it is |
 | --- | --- |
-| Daily Service | Same seeded service for everyone, keyed to the UTC date. One attempt, recorded server side when the service **starts**. Share card, daily and all-time leaderboard, streak of days played. |
+| Daily Service | Same seeded service for everyone, keyed to the UTC date. One attempt, recorded when the service **starts**. Share card, streak of days played, and a Wordle-style stats screen (played, average, streaks, star rating chart). |
 | The Stage | Six short guided services. The head chef talks you through one skill at a time: reading a ticket, long cooks first, checking the pan, bin and refire, splitting a table, then a proper rush. Ends with a chef's verdict. Never scored on a leaderboard. |
 | Practice | The original Friday Night, Saturday Night and Christmas Eve modes, unlimited, full five and a half minutes. |
 
@@ -40,17 +46,15 @@ manifest.json, icon-*.png     PWA
 shared/daily.js               Daily calendar: LAUNCH, weekday table, day numbers
 shared/pin.js                 PIN rules (from Rum to Riches)
 netlify/functions/api-auth.js      POST /api/auth      register, login, logout (name + PIN)
-netlify/functions/api-daily.js     GET/POST /api/daily today's service; start (one attempt) and finish
-netlify/functions/api-board.js     GET /api/board      ?scope=day[&date=] or ?scope=all
+netlify/functions/api-daily.js     GET/POST /api/daily today's service, your status and stats; start (one attempt) and finish
 netlify/functions/api-progress.js  GET/POST /api/progress  best scores, unlocks, Stage, settings across devices
 netlify/lib/                  http, store (Blobs), auth (scrypt PIN, sessions, lockout, rate limits), names, score, progress
 tests/                        node --test suites, plus devserver.mjs for local play
 ```
 
 ### Blobs layout (store `the-pass`)
-- `player:<id>` account: name, PIN hash, sessions, synced progress, daily history and streak
+- `player:<id>` account: name, PIN hash, sessions, synced progress, daily stats and streak
 - `daily:<date>:<id>` one attempt, created with `onlyIfNew` at the start of the service
-- `stats:<id>` all-time summary for the all-time board
 - `limit:<kind>:<hash>:<hour>` rate limit counters
 
 No environment variables are needed. Blobs is configured automatically on Netlify.
@@ -66,7 +70,7 @@ bots on the real page with a different fake `Math.random` each run.
 ```
 npm install
 npm test                      # API, calendar and determinism tests (determinism needs Playwright)
-node tests/devserver.mjs      # play on http://localhost:8899 with working accounts and leaderboards
+node tests/devserver.mjs      # play on http://localhost:8899 with working accounts
 ```
 
 ## Deploying
