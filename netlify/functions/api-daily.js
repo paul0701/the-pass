@@ -1,11 +1,11 @@
-// GET  /api/daily                      today's service number and weekday, plus your status if signed in
+// GET  /api/daily                      today's service number and weekday, plus your status and stats if signed in
 // POST /api/daily {action:"start", date}   records the attempt BEFORE play, so closing the tab is not a free retry
 // POST /api/daily {action:"finish", date, pct, grid, ...}  records the result of the attempt you started
 import { json, handle, readJson, HttpError } from "../lib/http.js";
 import { parseToken, verifySession, withPlayer } from "../lib/auth.js";
-import { loadRecord, loadJson, createJson, updateJson, putJson, dailyKey, statsKey } from "../lib/store.js";
+import { loadRecord, loadJson, createJson, updateJson, dailyKey } from "../lib/store.js";
 import { todayUtc, dailyInfo, DAILY_DURATION } from "../../shared/daily.js";
-import { starCount, GRID_RE, liveStreak, markPlayed } from "../lib/score.js";
+import { starCount, GRID_RE, liveStreak, markPlayed, publicStats } from "../lib/score.js";
 
 // A result can not arrive sooner than this after the start (the service itself is DAILY_DURATION seconds).
 const MIN_PLAY_MS = Math.round(DAILY_DURATION * 0.6) * 1000;
@@ -42,7 +42,7 @@ async function start(req, body) {
   }
   const out = await withPlayer(req, (record) => {
     record.daily = markPlayed(record.daily, date);
-    return { changed: true, result: { ok: true, streak: record.daily.streak } };
+    return { changed: true, result: { ok: true, streak: record.daily.streak, stats: publicStats(record.daily, date) } };
   });
   return json(200, out);
 }
@@ -72,24 +72,22 @@ async function finish(req, body) {
     d.finished = (d.finished || 0) + 1;
     d.total = (d.total || 0) + pct;
     d.best = Math.max(d.best || 0, pct);
-    return { changed: true, result: { name: record.name, daily: { ...d } } };
+    if (!Array.isArray(d.dist) || d.dist.length !== 6) d.dist = [0, 0, 0, 0, 0, 0];
+    d.dist[starCount(pct)]++;
+    return { changed: true, result: publicStats(d, date) };
   });
-  const d = out.daily;
-  await putJson(statsKey(me.id), {
-    name: out.name, days: d.days, finished: d.finished, total: d.total, best: d.best,
-    streak: d.streak, bestStreak: d.bestStreak, last: d.last
-  });
-  return json(200, { ok: true, status: publicAttempt(attempt), streak: d.streak });
+  return json(200, { ok: true, status: publicAttempt(attempt), streak: out.streak, stats: out });
 }
 
 export default handle(async (req) => {
   if (req.method === "GET") {
     const today = todayUtc();
-    const out = { ok: true, serverNow: Date.now(), today: dailyInfo(today), status: null, streak: 0 };
+    const out = { ok: true, serverNow: Date.now(), today: dailyInfo(today), status: null, streak: 0, stats: null };
     const record = await signedIn(req);
     if (record) {
       out.status = publicAttempt(await loadJson(dailyKey(today, record.id)));
       out.streak = liveStreak(record.daily, today);
+      out.stats = publicStats(record.daily, today);
     }
     return json(200, out);
   }

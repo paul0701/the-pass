@@ -145,15 +145,14 @@ button{font-family:inherit;color:inherit}
 .err{color:#c0392b;font-size:12px;min-height:16px;margin:2px 0 6px}
 .sugg{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
 .sugg button{border:1px solid #1d1d1d;background:#fff;border-radius:12px;padding:3px 9px;font:12px ui-monospace,Menlo,Consolas,monospace;cursor:pointer;color:#1d1d1d}
-.tabs{display:flex;gap:6px;margin:8px 0}
-.tabs button{flex:1;border:2px solid #1d1d1d;background:transparent;border-radius:6px;padding:6px;font:700 12px ui-monospace,Menlo,Consolas,monospace;cursor:pointer;color:#1d1d1d}
-.tabs button.on{background:#1d1d1d;color:#f6f4ee}
-.lb{width:100%;border-collapse:collapse;font-size:12.5px}
-.lb td{padding:4px 3px;border-bottom:1px dotted #bbb;white-space:nowrap}
-.lb td.n{max-width:130px;overflow:hidden;text-overflow:ellipsis}
-.lb tr.me td{background:#ffcf7a55;font-weight:700}
-.lb td.r{text-align:right}
-.lb td.g{font-size:7px;letter-spacing:0;white-space:normal;word-break:break-all;max-width:110px;line-height:1.15}
+.snums{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;margin:10px 0 4px}
+.snums b{display:block;font-size:26px;line-height:1.1}
+.snums small{display:block;font-size:10px;color:#555;line-height:1.2}
+.dist{margin:6px 0 4px}
+.drow{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:12px}
+.drow span{width:62px;flex:none;color:#b9801a;letter-spacing:.05em;font-size:11px;text-align:right}
+.drow i{display:block;font-style:normal;background:#8a929a;color:#fff;font-weight:700;padding:1px 6px;text-align:right;min-width:20px;border-radius:2px}
+.drow i.now{background:#58b368}
 .sq{font-size:15px;line-height:1.15;text-align:center;letter-spacing:1px;margin:6px 0;word-break:break-all}
 .prose{font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#333}
 .prose p{margin:8px 0}
@@ -300,7 +299,7 @@ const seeded = key => mulberry32(hashSeed(key));
 const rng = key => seeded(G.seed+'|'+key);
 
 /* ---------- persistence ---------- */
-let save = {best:[0,0,0], streak:0, unlocked:0, muted:false, played:0, seen:false, stage:0, daily:null, dstreak:null};
+let save = {best:[0,0,0], streak:0, unlocked:0, muted:false, played:0, seen:false, stage:0, daily:null, dstreak:null, dstats:null};
 function loadSave(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); if(s&&typeof s==='object') save=Object.assign(save,s); }catch(e){} }
 function writeSave(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(save)); }catch(e){} }
 const progressOf = () => ({best:save.best, streak:save.streak, unlocked:save.unlocked, played:save.played, stage:save.stage, muted:save.muted, seen:save.seen});
@@ -320,13 +319,27 @@ function localStreak(today){
   const y=new Date(Date.parse(today+'T00:00:00Z')-864e5).toISOString().slice(0,10);
   return d.last===today||d.last===y ? d.streak : 0;
 }
+const emptyStats = () => ({days:0, finished:0, total:0, best:0, bestStreak:0, dist:[0,0,0,0,0,0]});
 function markLocalPlayed(date){
   const d=save.dstreak||{last:null,streak:0};
+  const st=save.dstats||(save.dstats=emptyStats());
   if(d.last!==date){
     const y=new Date(Date.parse(date+'T00:00:00Z')-864e5).toISOString().slice(0,10);
     d.streak = d.last===y ? d.streak+1 : 1; d.last=date;
+    st.days++; st.bestStreak=Math.max(st.bestStreak,d.streak);
   }
   save.dstreak=d;
+}
+function markLocalFinished(pct){
+  const st=save.dstats||(save.dstats=emptyStats());
+  st.finished++; st.total+=pct; st.best=Math.max(st.best,pct); st.dist[starN(pct)]++;
+}
+/* Wordle-style stats: from the server when signed in (follows you between devices), from this phone otherwise. */
+function myStats(){
+  if(NET.token&&NET.stats) return NET.stats;
+  const st=save.dstats||emptyStats();
+  return {played:st.days, finished:st.finished, avg:st.finished?Math.round(st.total/st.finished):0, best:st.best,
+          streak:localStreak(todayUtc()), bestStreak:st.bestStreak, dist:st.dist};
 }
 
 /* ---------- procedural audio ---------- */
@@ -383,7 +396,7 @@ let G = null;
 let chosenMode = 0;
 let toastT = null, bubT = null, bubT2 = null;
 let headless = false;      // tests drive update() themselves
-let NET = {token:null, name:null, daily:null, streak:0};   // filled in by the online layer at the bottom
+let NET = {token:null, name:null, daily:null, streak:0, stats:null};   // filled in by the online layer at the bottom
 
 const brigadeEl=$('#brigade'), bubbleEl=$('#bubble'), boardEl=$('#board'), winEl=$('#window');
 const rdotsEl=$('#rdots'), openNEl=$('#openN'), ovEl=$('#ov'), toastEl=$('#toast'), printerEl=$('#printer');
@@ -894,7 +907,8 @@ function setMuteIcon(){
 /* ---------- overlays ---------- */
 function showOverlay(html,solid){ ovEl.innerHTML=html; ovEl.style.display='flex'; ovEl.classList.toggle('solid',!!solid); ovEl.scrollTop=0; }
 function hideOverlay(){ ovEl.style.display='none'; ovEl.innerHTML=''; }
-function stars(r){ const n=r>=92?5:r>=82?4:r>=70?3:r>=55?2:r>=35?1:0; return '★'.repeat(n)+'☆'.repeat(5-n); }
+const starN = r => r>=92?5:r>=82?4:r>=70?3:r>=55?2:r>=35?1:0;
+function stars(r){ const n=starN(r); return '★'.repeat(n)+'☆'.repeat(5-n); }
 const SQ = {g:'🟩', a:'🟨', r:'🟥'};
 function squares(grid,per){ per=per||8; let out=''; for(let i=0;i<grid.length;i++){ out+=SQ[grid[i]]||''; if((i+1)%per===0&&i<grid.length-1) out+='\n'; } return out; }
 const niceDate = d => new Date(d+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
@@ -915,7 +929,7 @@ function startScreen(){
   if(st&&st.finished){
     h+='<button class="daily done" data-act="report"><b>DAILY #'+info.number+' · '+info.short.toUpperCase()+' · '+st.pct+'%</b><small><span class="stars">'+stars(st.pct)+'</span> Done for today. Tap to share. Next service at midnight UTC.</small></button>';
   } else if(st&&st.started){
-    h+='<button class="daily done" data-act="board"><b>DAILY #'+info.number+' · '+info.short.toUpperCase()+'</b><small>You started today\'s service and left the pass. It still counts. Back tomorrow, chef.</small></button>';
+    h+='<button class="daily done" data-act="stats"><b>DAILY #'+info.number+' · '+info.short.toUpperCase()+'</b><small>You started today\'s service and left the pass. It still counts. Back tomorrow, chef.</small></button>';
   } else {
     h+='<button class="daily" data-act="dailybrief"><b>DAILY SERVICE #'+info.number+'</b><small>'+info.name+': '+info.title+'. Same tickets for everyone. One go.</small></button>';
   }
@@ -928,7 +942,7 @@ function startScreen(){
     h+='<button class="mode'+(i===chosenMode&&!locked?' on':'')+(locked?' locked':'')+'" data-act="mode" data-i="'+i+'"><b>'+m.name+(save.best[i]?' ('+save.best[i]+'%)':'')+'</b><small>'+(locked?'Locked: '+m.need:m.sub)+'</small></button>';
   });
   h+='</div><button class="go alt" data-act="start">START PRACTICE</button>';
-  h+='<div class="links"><button data-act="board">LEADERBOARD</button><button data-act="account">'+(NET.token?'ACCOUNT':'SIGN IN')+'</button>'+(CHARITY.enabled?'<button data-act="charity">SUPPORT</button>':'')+'</div>';
+  h+='<div class="links"><button data-act="stats">STATS</button><button data-act="account">'+(NET.token?'ACCOUNT':'SIGN IN')+'</button>'+(CHARITY.enabled?'<button data-act="charity">SUPPORT</button>':'')+'</div>';
   h+='<div class="stats">Longest table streak '+save.streak+' · Services run '+save.played+'</div></div>';
   showOverlay(h);
 }
@@ -937,7 +951,8 @@ function dailyBrief(){
   let h='<div class="card"><h1>DAILY</h1><div class="sub">#'+info.number+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
   h+='<div class="verdict">'+info.title+'.</div>';
   h+='<div class="prose"><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
-  h+=NET.token ? '<p>Your result goes on today\'s leaderboard as <b>'+esc(NET.name)+'</b>.</p>' : '<p>You\'re playing as a guest, so your result stays on this device. <a href="#" data-act="account">Sign in</a> to get on the leaderboard and keep your streak on every device.</p>';
+  h+='<p>Then share your card and see how everyone else got on.</p>';
+  h+=NET.token ? '<p>Signed in as <b>'+esc(NET.name)+'</b>, so your streak and stats follow you to any device.</p>' : '<p>Your streak and stats are kept on this phone. <a href="#" data-act="account">Sign in</a> if you want them on every device.</p>';
   h+='</div><button class="go" data-act="dailygo">START THE SERVICE</button><button class="go alt" data-act="home">NOT YET</button></div>';
   showOverlay(h);
 }
@@ -973,7 +988,7 @@ function dailyReportFromSave(){
   lastDaily=r;
   let h='<div class="card"><h1>THE PASS</h1><div class="sub">Daily #'+r.number+' · '+r.short+' · '+niceDate(r.date)+'</div><div class="rule"></div>';
   h+='<div class="big"><div class="pct">'+r.rating+'%</div><div class="stars">'+stars(r.rating)+'</div></div><div class="sq">'+squares(r.grid).replace(/\n/g,'<br>')+'</div>';
-  h+='<button class="go" data-act="share">SHARE</button><button class="go alt" data-act="board">LEADERBOARD</button><button class="go alt" data-act="home">BACK</button></div>';
+  h+='<button class="go" data-act="share">SHARE</button><button class="go alt" data-act="stats">STATS</button><button class="go alt" data-act="home">BACK</button></div>';
   showOverlay(h);
 }
 
@@ -1000,6 +1015,7 @@ function endGame(reason){
     Object.assign(res, {date:G.info.date, number:G.info.number, short:G.info.short});
     save.daily = {date:G.info.date, number:G.info.number, short:G.info.short, started:true, finished:true, rating, pct:rating, stars:stars(rating), grid:G.grid};
     lastDaily = save.daily;
+    markLocalFinished(rating);
   }
   if(G.kind==='stage') res.stage=G.stageIx+1;
   writeSave();
@@ -1019,8 +1035,9 @@ function endGame(reason){
   if(isBest&&rating>0) h+='<div class="note">New personal best.</div>';
   if(unlockMsg) h+='<div class="note">'+unlockMsg+'</div>';
   if(G.kind==='daily'){
-    h+='<div class="note dim" id="dailyNote">'+(NET.token?'Sending your result...':'Guest result, kept on this device. Sign in tomorrow to get on the board.')+'</div>';
-    h+='<button class="go" data-act="share" style="margin-top:12px">SHARE</button><button class="go alt" data-act="board">LEADERBOARD</button>';
+    const sk=localStreak(G.info.date);
+    h+='<div class="note dim" id="dailyNote">'+(NET.token?'Saving...':'Daily streak: '+sk+' day'+(sk===1?'':'s')+'.')+'</div>';
+    h+='<button class="go" data-act="share" style="margin-top:12px">SHARE</button><button class="go alt" data-act="stats">STATS</button>';
     h+='<button class="go alt" data-act="again">BACK TO THE PASS</button>';
   } else h+='<button class="go" data-act="again" style="margin-top:12px">BACK TO THE PASS</button>';
   if(CHARITY.enabled) h+='<div class="stats"><a href="#" data-act="charity" style="color:#555">'+esc(CHARITY.reportLine)+'</a></div>';
@@ -1035,6 +1052,20 @@ function stageReport(res, passed){
   if(passed && i+1<STAGES.length) h+='<button class="go" data-act="stage" data-i="'+(i+1)+'">NEXT: '+STAGES[i+1].name.toUpperCase()+'</button>';
   else if(passed) h+='<div class="note">Stage complete. You\'re ready for the daily, chef.</div><button class="go" data-act="home">TO THE PASS</button>';
   h+='<button class="go'+(passed?' alt':'')+'" data-act="stage" data-i="'+i+'">GO AGAIN</button><button class="go alt" data-act="stages">ALL STAGES</button></div>';
+  showOverlay(h);
+}
+function statsScreen(){
+  const s=myStats(), st=todayStatus(), now=st&&st.finished?starN(st.pct):-1;
+  const max=Math.max(1,...s.dist);
+  const ms=Date.parse(todayUtc()+'T00:00:00Z')+864e5-Date.now();
+  const left=Math.floor(ms/36e5)+'h '+Math.floor(ms%36e5/6e4)+'m';
+  let h='<div class="card"><h1 style="font-size:20px">STATS</h1><div class="sub">'+(NET.token?esc(NET.name):'This phone')+'</div><div class="rule"></div>';
+  h+='<div class="snums"><div><b>'+s.played+'</b><small>Played</small></div><div><b>'+(s.finished?s.avg+'%':'-')+'</b><small>Average</small></div><div><b>'+s.streak+'</b><small>Current streak</small></div><div><b>'+s.bestStreak+'</b><small>Best streak</small></div></div>';
+  h+='<div class="sect">STAR RATINGS</div><div class="dist">';
+  for(let n=5;n>=0;n--){ const c=s.dist[n]||0; h+='<div class="drow"><span>'+('★'.repeat(n)||'none')+'</span><i class="'+(n===now?'now':'')+'" style="width:'+Math.max(8,Math.round(c/max*100))+'%">'+c+'</i></div>'; }
+  h+='</div><div class="rule"></div><div class="stats" style="margin-top:4px">Next service in '+left+'</div>';
+  if(st&&st.finished) h+='<button class="go" data-act="share" style="margin-top:10px">SHARE</button>';
+  h+='<button class="go alt" data-act="home">BACK</button></div>';
   showOverlay(h);
 }
 function charityPage(){
@@ -1095,7 +1126,7 @@ ovEl.addEventListener('click',e=>{
   else if(a==='stages'){ stageMenu(); }
   else if(a==='stage'){ newGame(0,{kind:'stage', stage:+b.dataset.i}); }
   else if(a==='charity'){ charityPage(); }
-  else if(a==='board'){ Online.board(b.dataset.scope||'day'); }
+  else if(a==='stats'){ statsScreen(); }
   else if(a==='account'){ Online.account(); }
   else if(Online.act) Online.act(a,b);
 });
@@ -1113,7 +1144,7 @@ async function startDaily(btn){
       else toast(r.error||'Can\'t reach the pass. Try again.',true);
       return;
     }
-    NET.daily={date:info.date,status:{started:true,finished:false}}; NET.streak=r.data.streak||NET.streak;
+    NET.daily={date:info.date,status:{started:true,finished:false}}; NET.streak=r.data.streak||NET.streak; if(r.data.stats) NET.stats=r.data.stats;
   }
   save.daily={date:info.date, number:info.number, short:info.short, started:true, finished:false};
   markLocalPlayed(info.date); writeSave();
@@ -1131,7 +1162,7 @@ function frame(ts){
   acc+=dt; if(acc>=.1){ acc=0; render(); }
 }
 
-/* ---------- online: accounts, daily attempts, leaderboards (Netlify functions under /api) ---------- */
+/* ---------- online: optional accounts, daily attempts, stats sync (Netlify functions under /api) ---------- */
 const Online = (function(){
   const online = /^https?:/.test(location.protocol);
   try{ const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); if(s&&s.token){ NET.token=s.token; NET.name=s.name; } }catch(e){}
@@ -1149,7 +1180,7 @@ const Online = (function(){
   }
   async function refresh(){
     const r=await api('/api/daily');
-    if(r.ok){ NET.daily={date:r.data.today.date, status:r.data.status}; NET.streak=r.data.streak||0; }
+    if(r.ok){ NET.daily={date:r.data.today.date, status:r.data.status}; NET.streak=r.data.streak||0; NET.stats=r.data.stats; }
     if(NET.token){
       const p=await api('/api/progress');
       if(p.ok){ mergeProgress(p.data.progress); syncSoon(); }
@@ -1165,43 +1196,19 @@ const Online = (function(){
     const r=await api('/api/daily',{action:'finish', date:res.date, pct:res.rating, grid:res.grid, covers:res.covers, tables:res.tables, walked:res.walked,
       dead:res.dead, refires:res.refires, clean:res.clean, awkward:res.awkward, freshness:res.freshness, avgTicket:res.avgTicket});
     const n=$('#dailyNote');
-    if(r.ok){ NET.daily={date:res.date,status:r.data.status}; NET.streak=r.data.streak; if(n) n.textContent='On the board. Daily streak: '+r.data.streak+' day'+(r.data.streak===1?'':'s')+'.'; }
+    if(r.ok){ NET.daily={date:res.date,status:r.data.status}; NET.streak=r.data.streak; NET.stats=r.data.stats; if(n) n.textContent='Saved. Daily streak: '+r.data.streak+' day'+(r.data.streak===1?'':'s')+'.'; }
     else if(n) n.textContent='Result not recorded: '+r.error;
   }
   async function startDaily(date){ return api('/api/daily',{action:'start',date}); }
 
-  let boardScope='day';
-  async function board(scope){
-    boardScope=scope;
-    const head='<div class="card"><h1 style="font-size:20px">LEADERBOARD</h1><div class="tabs"><button class="'+(scope==='day'?'on':'')+'" data-act="board" data-scope="day">TODAY</button><button class="'+(scope==='all'?'on':'')+'" data-act="board" data-scope="all">ALL TIME</button></div>';
-    const tail='<button class="go alt" data-act="home" style="margin-top:12px">BACK</button></div>';
-    showOverlay(head+'<div class="stats">Loading...</div>'+tail);
-    const r=await api('/api/board?scope='+scope);
-    if(boardScope!==scope) return;
-    let h='';
-    if(!r.ok){ h='<div class="stats">'+esc(r.error)+'</div>'; }
-    else if(scope==='day'){
-      h+='<div class="stats" style="margin:0 0 6px">Daily #'+r.data.number+' · '+r.data.name+' · '+r.data.played+' chef'+(r.data.played===1?'':'s')+'</div>';
-      if(!r.data.rows.length) h+='<div class="stats">Nobody\'s finished today\'s service yet.</div>';
-      else { h+='<table class="lb">'; r.data.rows.forEach((x,i)=>{ h+='<tr class="'+(x.name===NET.name?'me':'')+'"><td>'+(i+1)+'</td><td class="n">'+esc(x.name)+'</td><td class="g">'+squares(x.grid,99)+'</td><td class="r"><b>'+x.pct+'%</b></td></tr>'; }); h+='</table>'; }
-    } else {
-      h+='<div class="stats" style="margin:0 0 6px">Average daily score. Ranked after '+r.data.minDays+' services.</div>';
-      if(!r.data.rows.length) h+='<div class="stats">No results yet.</div>';
-      else { h+='<table class="lb"><tr><td></td><td class="n small">CHEF</td><td class="r small">AVG</td><td class="r small">DAYS</td><td class="r small">STREAK</td></tr>';
-        r.data.rows.forEach((x,i)=>{ h+='<tr class="'+(x.name===NET.name?'me':'')+'"><td>'+(x.ranked?i+1:'-')+'</td><td class="n">'+esc(x.name)+'</td><td class="r"><b>'+x.avg+'%</b></td><td class="r">'+x.days+'</td><td class="r">'+x.streak+'</td></tr>'; }); h+='</table>'; }
-    }
-    if(!NET.token) h+='<div class="stats"><a href="#" data-act="account" style="color:#c0392b">Sign in</a> to get on the board.</div>';
-    showOverlay(head+h+tail);
-  }
-
   function account(msg){
     let h='<div class="card"><h1 style="font-size:20px">'+(NET.token?'ACCOUNT':'SIGN IN')+'</h1>';
     if(NET.token){
-      h+='<div class="sub">Signed in as <b>'+esc(NET.name)+'</b></div><div class="rule"></div><div class="prose"><p>Your best scores, unlocks, Stage progress and settings follow you to any device you sign in on.</p><p>Daily streak: <b>'+NET.streak+'</b></p></div>';
+      h+='<div class="sub">Signed in as <b>'+esc(NET.name)+'</b></div><div class="rule"></div><div class="prose"><p>Your daily streak, stats, best scores, unlocks, Stage progress and settings follow you to any device you sign in on.</p><p>Daily streak: <b>'+NET.streak+'</b></p></div>';
       h+='<button class="go alt" data-act="logout">SIGN OUT</button><button class="go alt" data-act="home">BACK</button></div>';
       return showOverlay(h);
     }
-    h+='<div class="sub">A name and a PIN. That\'s it.</div><div class="rule"></div>';
+    h+='<div class="sub">Optional. Keeps your streak and stats on every device.</div><div class="rule"></div>';
     h+='<label>CHEF NAME</label><input id="accName" maxlength="20" autocomplete="username" autocapitalize="words" value="'+esc((msg&&msg.name)||'')+'">';
     h+='<label>PIN (4 TO 6 DIGITS)</label><input id="accPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password">';
     h+='<div class="err" id="accErr">'+esc((msg&&msg.error)||'')+'</div>';
@@ -1218,7 +1225,7 @@ const Online = (function(){
     const err=$('#accErr'); if(err) err.textContent='...';
     const r=await api('/api/auth',{action,name:name.trim(),pin,progress:progressOf()});
     if(!r.ok) return account({name, error:r.error, suggestions:r.data.suggestions});
-    NET.token=r.data.token; NET.name=r.data.name; NET.streak=r.data.streak||0; keep();
+    NET.token=r.data.token; NET.name=r.data.name; NET.streak=r.data.streak||0; NET.stats=r.data.stats||null; keep();
     mergeProgress(r.data.progress);
     await refresh();
     toast('Welcome to the pass, '+NET.name+'.');
@@ -1228,13 +1235,13 @@ const Online = (function(){
     if(a==='login') return auth('login');
     if(a==='register') return auth('register');
     if(a==='suggest'){ const i=$('#accName'); if(i) i.value=b.dataset.n; return; }
-    if(a==='logout'){ await api('/api/auth',{action:'logout'}); NET.token=null; NET.name=null; NET.daily=null; NET.streak=0; keep(); startScreen(); }
+    if(a==='logout'){ await api('/api/auth',{action:'logout'}); NET.token=null; NET.name=null; NET.daily=null; NET.streak=0; NET.stats=null; keep(); startScreen(); }
   }
   // Every service result goes through the existing hook.
   const prev = window.PASS_HOOKS && window.PASS_HOOKS.onServiceEnd;
   window.PASS_HOOKS = window.PASS_HOOKS || {};
   window.PASS_HOOKS.onServiceEnd = function(res){ try{ if(prev) prev(res); }catch(e){} return onEnd(res); };
-  return {refresh, syncSoon, startDaily, board, account, act};
+  return {refresh, syncSoon, startDaily, account, act};
 })();
 
 requestAnimationFrame(frame);

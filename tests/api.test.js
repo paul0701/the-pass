@@ -8,7 +8,7 @@ import { BlobsServer } from "@netlify/blobs/server";
 
 const dir = mkdtempSync(join(tmpdir(), "the-pass-blobs-"));
 const token = "test-token";
-let server, auth, daily, board, progress;
+let server, auth, daily, progress;
 const realNow = Date.now;
 let skew = 0;
 
@@ -20,7 +20,6 @@ before(async () => {
   Date.now = () => realNow() + skew;
   auth = (await import("../netlify/functions/api-auth.js")).default;
   daily = (await import("../netlify/functions/api-daily.js")).default;
-  board = (await import("../netlify/functions/api-board.js")).default;
   progress = (await import("../netlify/functions/api-progress.js")).default;
 });
 after(async () => {
@@ -67,7 +66,7 @@ test("progress sync merges and never goes backwards", async () => {
   assert.equal(r.status, 401);
 });
 
-test("daily: one attempt, recorded at the start, result once, leaderboards and streak", async () => {
+test("daily: one attempt, recorded at the start, result once, stats and streak", async () => {
   const { data } = await call(auth, "POST", { action: "login", name: "Paul Jones", pin: "1357" });
   const t = data.token;
   let r = await call(daily, "GET", null, t);
@@ -99,16 +98,13 @@ test("daily: one attempt, recorded at the start, result once, leaderboards and s
   r = await call(daily, "POST", { action: "finish", date: today(), pct: 84, grid: "ggar", covers: 61 }, t);
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.status.stars, 4);
+  assert.deepEqual(r.data.stats, { played: 1, finished: 1, avg: 84, best: 84, streak: 1, bestStreak: 1, dist: [0, 0, 0, 0, 1, 0] });
   r = await call(daily, "POST", { action: "finish", date: today(), pct: 99, grid: "g" }, t);
   assert.equal(r.status, 409, "result only once");
 
-  r = await call(board, "GET", null, null, "?scope=day");
-  assert.equal(r.data.rows.length, 1);
-  assert.deepEqual(r.data.rows[0], { name: "Paul Jones", pct: 84, stars: 4, grid: "ggar" });
-  r = await call(board, "GET", null, null, "?scope=all");
-  assert.equal(r.data.rows[0].name, "Paul Jones");
-  assert.equal(r.data.rows[0].avg, 84);
-  assert.equal(r.data.rows[0].streak, 1);
+  r = await call(daily, "GET", null, t);
+  assert.equal(r.data.stats.avg, 84);
+  assert.equal(r.data.status.pct, 84);
 
   // Next day: the streak goes up.
   skew += 86400 * 1000;

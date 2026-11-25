@@ -4,12 +4,10 @@ import { HttpError } from "./http.js";
 // One Blobs store for the whole game. Key layout:
 //   player:<id>          the account: name, PIN hash, sessions, synced progress, daily history
 //   daily:<date>:<id>    one Daily Service attempt, created with onlyIfNew when the service STARTS
-//   stats:<id>           small all-time summary, rewritten when a daily finishes (for the all-time board)
 //   limit:<kind>:<h>:<hour>  rate limit counters
 export const STORE_NAME = "the-pass";
 export const playerKey = (id) => `player:${id}`;
 export const dailyKey = (date, id) => `daily:${date}:${id}`;
-export const statsKey = (id) => `stats:${id}`;
 const MAX_RETRIES = 6;
 
 export const store = () => getStore({ name: STORE_NAME, consistency: "strong" });

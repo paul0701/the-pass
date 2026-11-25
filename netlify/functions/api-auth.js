@@ -6,7 +6,7 @@ import { validateName, cleanName, chefId, suggestNames } from "../lib/names.js";
 import { pinProblem } from "../../shared/pin.js";
 import { PIN_RE, makeSecret, verifySecret, assertNotLocked, registerFailure, issueSession, parseToken, revokeSession, allow } from "../lib/auth.js";
 import { cleanProgress, mergeProgress } from "../lib/progress.js";
-import { liveStreak } from "../lib/score.js";
+import { liveStreak, publicStats } from "../lib/score.js";
 import { todayUtc } from "../../shared/daily.js";
 
 const TAKEN = "That name is already on the rota. Sign in or pick another.";
@@ -36,7 +36,7 @@ const requireName = (name) => {
 
 const sessionReply = (record, token) => ({
   ok: true, token, playerId: record.id, name: record.name,
-  progress: record.progress, streak: liveStreak(record.daily, todayUtc())
+  progress: record.progress, streak: liveStreak(record.daily, todayUtc()), stats: publicStats(record.daily, todayUtc())
 });
 
 const unwrap = (result) => {
