@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="The Pass">
 <meta name="theme-color" content="#2b3036">
-<meta name="description" content="Head chef on a Friday night. Run the pass, read your brigade, and decide when to split a table.">
+<meta name="description" content="A daily kitchen service game. Same service for everyone, once a day. Run the pass, read your brigade, and decide when to split a table.">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232b3036'/%3E%3Cpath d='M9 5h14v20l-3-2-2 2-2-2-2 2-2-2-3 2z' fill='%23f6f4ee'/%3E%3Crect x='12' y='10' width='8' height='2' fill='%23c0392b'/%3E%3Crect x='12' y='14' width='8' height='2' fill='%23555'/%3E%3C/svg%3E">
@@ -125,6 +125,42 @@ button{font-family:inherit;color:inherit}
 .big .stars{font-size:24px;letter-spacing:.12em;color:#b9801a}
 .note{text-align:center;font-size:12px;margin:8px 0 2px;color:#237a3a;font-weight:700}
 .note.bad{color:#c0392b}
+.note.dim{color:#555;font-weight:400}
+#coach{display:none;margin:4px 8px 0;flex:none;background:#ffcf7a;color:#1d1d1d;border-radius:9px;padding:6px 10px;font-size:13.5px;font-weight:600;line-height:1.3;min-height:36px;align-items:center;gap:8px;box-shadow:0 2px 6px #0006}
+#coach.on{display:flex}
+#coach b{flex:none;font:800 10px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;background:#1d1d1d;color:#ffcf7a;border-radius:4px;padding:2px 5px}
+#coach span{animation:bubin .15s ease-out}
+.bub.chef{background:#ffcf7a}
+.daily{display:block;width:100%;text-align:left;border:0;border-radius:6px;background:#c0392b;color:#fff;padding:12px 14px;cursor:pointer;font-family:inherit}
+.daily b{display:block;font-size:18px;letter-spacing:.08em}
+.daily small{display:block;font-size:11.5px;opacity:.9;margin-top:2px}
+.daily.done{background:#1d1d1d}
+.daily.done .stars{color:#ffcf7a}
+.sect{font-size:10px;letter-spacing:.2em;color:#555;margin:12px 0 4px}
+.mode.next{border-color:#c0392b;box-shadow:inset 4px 0 0 #c0392b}
+.links{display:flex;gap:6px;margin-top:10px}
+.links button{flex:1;border:2px solid #1d1d1d;background:transparent;border-radius:6px;padding:8px 4px;font:700 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;cursor:pointer;color:#1d1d1d}
+.card input{display:block;width:100%;font:16px ui-monospace,Menlo,Consolas,monospace;padding:9px 10px;border:2px solid #1d1d1d;border-radius:6px;background:#fff;color:#1d1d1d;-webkit-user-select:text;user-select:text;margin:3px 0 8px}
+.card label{font-size:11px;letter-spacing:.08em;color:#555}
+.err{color:#c0392b;font-size:12px;min-height:16px;margin:2px 0 6px}
+.sugg{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px}
+.sugg button{border:1px solid #1d1d1d;background:#fff;border-radius:12px;padding:3px 9px;font:12px ui-monospace,Menlo,Consolas,monospace;cursor:pointer;color:#1d1d1d}
+.tabs{display:flex;gap:6px;margin:8px 0}
+.tabs button{flex:1;border:2px solid #1d1d1d;background:transparent;border-radius:6px;padding:6px;font:700 12px ui-monospace,Menlo,Consolas,monospace;cursor:pointer;color:#1d1d1d}
+.tabs button.on{background:#1d1d1d;color:#f6f4ee}
+.lb{width:100%;border-collapse:collapse;font-size:12.5px}
+.lb td{padding:4px 3px;border-bottom:1px dotted #bbb;white-space:nowrap}
+.lb td.n{max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.lb tr.me td{background:#ffcf7a55;font-weight:700}
+.lb td.r{text-align:right}
+.lb td.g{font-size:7px;letter-spacing:0;white-space:normal;word-break:break-all;max-width:110px;line-height:1.15}
+.sq{font-size:15px;line-height:1.15;text-align:center;letter-spacing:1px;margin:6px 0;word-break:break-all}
+.prose{font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#333}
+.prose p{margin:8px 0}
+.prose a{color:#c0392b;font-weight:700}
+.small{font-size:10.5px;color:#777}
+.verdict{font:600 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;margin:10px 4px;color:#1d1d1d}
+.ov.solid{background:#0a0c0e}
 </style>
 </head>
 <body>
@@ -144,6 +180,7 @@ button{font-family:inherit;color:inherit}
     <span>AWAY<b id="spikeN">0</b></span>
     <div id="runners">RUNNERS<span id="rdots"></span></div>
   </div>
+  <div id="coach"><b>CHEF</b><span id="coachTx"></span></div>
   <div id="board"></div>
   <div id="window"><span id="winlabel">THE PASS</span></div>
   <div id="toast"></div>
@@ -155,11 +192,12 @@ button{font-family:inherit;color:inherit}
 'use strict';
 
 /* ---------- constants ---------- */
-const DURATION = 330;      // real seconds for 18:00 to 22:00
+const DURATION = 330;      // real seconds for 18:00 to 22:00 in Practice
 const SPAWN_END = 205;     // game minutes after which no new tickets print
 const GRACE = 28;          // split table grace window, real seconds
 const CLOSE_GRACE = 25;    // seconds allowed to clear the rail after 22:00
 const SAVE_KEY = 'thepass.save.v1';
+const SESSION_KEY = 'thepass.session.v1';
 
 const ST = {
   grill:   {label:'GRILL',   tag:'GRILL',  free:6, cap:10, decay:1.1, slow:.12, optimistic:false},
@@ -168,11 +206,20 @@ const ST = {
   garnish: {label:'GARNISH', tag:'FRYER',  free:6, cap:10, decay:4.2, slow:.1, optimistic:false}
 };
 const KEYS = ['grill','pan','larder','garnish'];
-const MENU = {
-  grill:   [['Ribeye Steak','RIB',30,'Ribeye'],['Lamb Rump','LMB',28,'Lamb'],['Burger','BGR',22,'Burger']],
-  pan:     [['Duck Breast','DCK',24,'Duck'],['Sea Bass','BAS',18,'Sea Bass'],['Risotto','RIS',22,'Risotto']],
-  larder:  [['Burrata Salad','BRT',8,'Burrata'],['Tartare','TAR',9,'Tartare'],['Prawn Cocktail','PRN',7,'Prawn']],
-  garnish: [['Triple-Cooked Chips','CHP',12,'Chips'],['Greens','GRN',8,'Greens'],['Onion Rings','RNG',10,'Rings']]
+const MENUS = {
+  main: {
+    grill:   [['Ribeye Steak','RIB',30,'Ribeye'],['Lamb Rump','LMB',28,'Lamb'],['Burger','BGR',22,'Burger']],
+    pan:     [['Duck Breast','DCK',24,'Duck'],['Sea Bass','BAS',18,'Sea Bass'],['Risotto','RIS',22,'Risotto']],
+    larder:  [['Burrata Salad','BRT',8,'Burrata'],['Tartare','TAR',9,'Tartare'],['Prawn Cocktail','PRN',7,'Prawn']],
+    garnish: [['Triple-Cooked Chips','CHP',12,'Chips'],['Greens','GRN',8,'Greens'],['Onion Rings','RNG',10,'Rings']]
+  },
+  // Sunday: a roast service. Same four sections, different plates.
+  roast: {
+    grill:   [['Roast Sirloin','BEF',26,'Sirloin'],['Lamb Shoulder','SHL',28,'Lamb'],['Pork Belly','PRK',24,'Pork']],
+    pan:     [['Roast Chicken','CHK',22,'Chicken'],['Sea Bass','BAS',18,'Sea Bass'],['Nut Roast','NUT',20,'Nut Roast']],
+    larder:  [['Prawn Cocktail','PRN',7,'Prawn'],['Chicken Liver Pate','PAT',8,'Pate'],['Smoked Salmon','SMK',7,'Salmon']],
+    garnish: [['Roast Potatoes','ROA',12,'Roasties'],['Yorkshire Pudding','YRK',10,'Yorkies'],['Cauliflower Cheese','CCH',9,'Cauli']]
+  }
 };
 const WAVES = [
   {name:'Early Doors',    cov:[2,2,2,3],   int:[11,15], allergy:0,   rush:0,   vip:0,   xc:0,   idx:0},
@@ -185,24 +232,102 @@ const MODES = [
   {name:'Saturday Night', sub:'Tickets come faster and the pan gets edgy.',  int:.84, rush:.06, pan:1.15, need:'Score 70% or better on Friday Night'},
   {name:'Christmas Eve',  sub:'Fully booked. Everyone wants it now.',        int:.76, rush:.12, pan:1.2, need:'Score 75% or better on Saturday Night'}
 ];
+
+/* The Daily Service calendar. Keep in step with shared/daily.js (tests/daily.test.js checks it). */
+const LAUNCH = '2026-11-25';
+const DAILY_DURATION = 240;
+const DAYS = [
+  {short:'Sun', name:'Sunday',    title:'Sunday Roast',  int:.95,  rush:0,   pan:1,    menu:'roast'},
+  {short:'Mon', name:'Monday',    title:'Quiet Monday',  int:1.15, rush:0,   pan:.9,   menu:'main'},
+  {short:'Tue', name:'Tuesday',   title:'Tuesday',       int:1.07, rush:0,   pan:1,    menu:'main'},
+  {short:'Wed', name:'Wednesday', title:'Midweek',       int:1,    rush:0,   pan:1,    menu:'main'},
+  {short:'Thu', name:'Thursday',  title:'Thursday Push', int:.92,  rush:.03, pan:1.08, menu:'main'},
+  {short:'Fri', name:'Friday',    title:'Friday Night',  int:.84,  rush:.06, pan:1.15, menu:'main'},
+  {short:'Sat', name:'Saturday',  title:'Saturday Slam', int:.76,  rush:.12, pan:1.2,  menu:'main'}
+];
+const todayUtc = () => new Date().toISOString().slice(0,10);
+const dayIndex = d => new Date(d+'T00:00:00Z').getUTCDay();
+const dailyNumber = d => Math.round((Date.parse(d+'T00:00:00Z')-Date.parse(LAUNCH+'T00:00:00Z'))/864e5)+1;
+function dailyInfo(date){ const x=DAYS[dayIndex(date)]; return {date, number:dailyNumber(date), dow:dayIndex(date), short:x.short, name:x.name, title:x.title}; }
+
+/* Support the Burnt Chef Project. Switched off until Paul has heard back from the charity.
+   Everything they might want reworded lives here, so it is one edit to change. */
+const CHARITY = {
+  enabled: false,
+  name: 'The Burnt Chef Project',
+  url: 'https://theburntchefproject.com',
+  reportLine: 'If you enjoyed this, please consider supporting the people who live this for real.',
+  note: [
+    'I spent seven years at Sam\'s Chophouse in Manchester, three or four of them on the meat section. The Pass is that job squeezed into four minutes: the printer, the pressure, the night closing in.',
+    'In a game you can close the tab. In a real kitchen you go home with it. Long hours, heat, noise and a lot of pride make it hard to say you are struggling, and too many chefs do not.',
+    'The Burnt Chef Project is a charity working to change that across hospitality. If this game made you feel even a little of a Saturday night, please think about supporting them.'
+  ],
+  noteBy: 'Paul Jones',
+  support: 'Work in hospitality and finding it hard? The Burnt Chef Project offers free, confidential support for hospitality workers, whenever you need it.',
+  disclaimer: 'The Pass is an independent game. It is not affiliated with or endorsed by The Burnt Chef Project. Donations go straight to the charity through their own website; the game never handles money.'
+};
+
 const ACK = ['Yes, chef!','Heard!','Oui, chef!','Heard, chef!','On it!'];
 const ALLERGIES = ['NUT ALLERGY','GLUTEN FREE','SHELLFISH ALLERGY','DAIRY FREE'];
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
 const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
-const rand = (a,b) => a + Math.random()*(b-a);
-const pick = a => a[Math.floor(Math.random()*a.length)];
+// Gameplay randomness always takes a seeded generator r. Math.random is only for cosmetics (cpick, sound).
+const rand = (r,a,b) => a + r()*(b-a);
+const pick = (r,a) => a[Math.floor(r()*a.length)];
+const cpick = a => a[Math.floor(Math.random()*a.length)];
 const pad = n => (n<10?'0':'')+n;
 const fmt = s => { s=Math.max(0,s); return Math.floor(s/60)+':'+pad(Math.floor(s%60)); };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function el(tag,cls,parent,txt){const e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; if(parent)parent.appendChild(e); return e;}
 const NUMW = {5:'Five',10:'Ten',15:'Fifteen',20:'Twenty',25:'Twenty-five',30:'Thirty',35:'Thirty-five',40:'Forty',45:'Forty-five',50:'Fifty',55:'Fifty-five',60:'Sixty'};
 const numWord = n => NUMW[n] || String(n);
 
+/* ---------- seeded randomness ----------
+   Every gameplay roll comes from a generator keyed to (service seed, purpose). Each ticket, each firing of a dish,
+   each check and each runner gets its own stream, so the night is the same for everyone whatever order they play in,
+   and the same seed with the same actions always gives the same result. */
+function hashSeed(str){
+  let h1=1779033703, h2=3144134277, h3=1013904242, h4=2773480762;
+  for(let i=0;i<str.length;i++){ const k=str.charCodeAt(i);
+    h1=h2^Math.imul(h1^k,597399067); h2=h3^Math.imul(h2^k,2869860233); h3=h4^Math.imul(h3^k,951274213); h4=h1^Math.imul(h4^k,2716044179); }
+  h1=Math.imul(h3^(h1>>>18),597399067); h2=Math.imul(h4^(h2>>>22),2869860233); h3=Math.imul(h1^(h3>>>17),951274213); h4=Math.imul(h2^(h4>>>19),2716044179);
+  return (h1^h2^h3^h4)>>>0;
+}
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const seeded = key => mulberry32(hashSeed(key));
+const rng = key => seeded(G.seed+'|'+key);
+
 /* ---------- persistence ---------- */
-let save = {best:[0,0,0], streak:0, unlocked:0, muted:false, played:0, seen:false};
+let save = {best:[0,0,0], streak:0, unlocked:0, muted:false, played:0, seen:false, stage:0, daily:null, dstreak:null};
 function loadSave(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); if(s&&typeof s==='object') save=Object.assign(save,s); }catch(e){} }
 function writeSave(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(save)); }catch(e){} }
+const progressOf = () => ({best:save.best, streak:save.streak, unlocked:save.unlocked, played:save.played, stage:save.stage, muted:save.muted, seen:save.seen});
+function mergeProgress(p){
+  if(!p) return;
+  save.best = save.best.map((v,i)=>Math.max(v, (p.best&&p.best[i])||0));
+  save.streak=Math.max(save.streak,p.streak||0); save.unlocked=Math.max(save.unlocked,p.unlocked||0);
+  save.played=Math.max(save.played,p.played||0); save.stage=Math.max(save.stage,p.stage||0);
+  if(typeof p.muted==='boolean'){ save.muted=p.muted; A.muted=p.muted; setMuteIcon(); }
+  save.seen = save.seen || !!p.seen;
+  writeSave();
+}
+// Guests: a local record of today's daily so it cannot be replayed in this browser.
+function localDaily(date){ return save.daily && save.daily.date===date ? save.daily : null; }
+function localStreak(today){
+  const d=save.dstreak; if(!d) return 0;
+  const y=new Date(Date.parse(today+'T00:00:00Z')-864e5).toISOString().slice(0,10);
+  return d.last===today||d.last===y ? d.streak : 0;
+}
+function markLocalPlayed(date){
+  const d=save.dstreak||{last:null,streak:0};
+  if(d.last!==date){
+    const y=new Date(Date.parse(date+'T00:00:00Z')-864e5).toISOString().slice(0,10);
+    d.streak = d.last===y ? d.streak+1 : 1; d.last=date;
+  }
+  save.dstreak=d;
+}
 
 /* ---------- procedural audio ---------- */
 const A = {
@@ -256,27 +381,66 @@ const A = {
 /* ---------- state ---------- */
 let G = null;
 let chosenMode = 0;
-let pTimer = null, toastT = null, bubT = null, bubT2 = null;
+let toastT = null, bubT = null, bubT2 = null;
+let headless = false;      // tests drive update() themselves
+let NET = {token:null, name:null, daily:null, streak:0};   // filled in by the online layer at the bottom
 
 const brigadeEl=$('#brigade'), bubbleEl=$('#bubble'), boardEl=$('#board'), winEl=$('#window');
 const rdotsEl=$('#rdots'), openNEl=$('#openN'), ovEl=$('#ov'), toastEl=$('#toast'), printerEl=$('#printer');
+const coachEl=$('#coach'), coachTx=$('#coachTx');
 const stnUi = {};
 
-function slowOf(key){ return ST[key].slow * (key==='pan' ? MODES[G.mode].pan : 1); }
+function slowOf(key){ return ST[key].slow * (key==='pan' ? G.cfg.pan : 1); }
 function rate(key,n){ const f=ST[key].free; return n<=f ? 1 : 1/(1+slowOf(key)*(n-f)); }
 function waveAt(m){ return m<45?WAVES[0] : m<90?WAVES[1] : m<180?WAVES[2] : WAVES[3]; }
 function selT(){ if(!G||!G.sel) return null; const t=G.tmap[G.sel]; return (t&&!t.done)?t:null; }
 function openTickets(){ return G.tickets.filter(t=>!t.done); }
 
-function newGame(mode){
-  G = {mode, t:0, min:0, tickets:[], tmap:{}, dmap:{}, tid:1, did:1, tn:0, nextSpawn:2, sel:0, dirty:true, panelFor:-1,
+/* opts: {kind:'practice'|'daily'|'stage', seed, daily:info, stage:index} */
+function newGame(mode, opts){
+  opts = opts || {};
+  const kind = opts.kind || 'practice';
+  let cfg;
+  if(kind==='daily'){
+    const d=DAYS[opts.daily.dow];
+    cfg={int:d.int, rush:d.rush, pan:d.pan, menu:d.menu, duration:DAILY_DURATION, label:d.short+' #'+opts.daily.number};
+  } else if(kind==='stage'){
+    const sd=STAGES[opts.stage];
+    cfg=Object.assign({int:1, rush:0, pan:1, menu:'main', duration:9999, label:'Stage '+(opts.stage+1), parMul:2, noEarly:true, decayMul:{}}, sd.cfg||{});
+  } else {
+    const m=MODES[mode];
+    cfg={int:m.int, rush:m.rush, pan:m.pan, menu:'main', duration:DURATION, label:m.name};
+  }
+  cfg.decayMul = cfg.decayMul || {};
+  const seed = opts.seed || (kind==='daily' ? 'daily|'+opts.daily.date : kind==='stage' ? 'stage|'+opts.stage : 'practice|'+Date.now()+'|'+Math.random());
+  G = {mode, kind, cfg, seed, info:opts.daily||null, stageIx:kind==='stage'?opts.stage:-1, sd:kind==='stage'?STAGES[opts.stage]:null, sv:{},
+       t:0, min:0, tickets:[], tmap:{}, dmap:{}, tid:1, did:1, tn:0, sel:0, dirty:true,
+       plan:[], pi:0, delay:0, sends:0, script:[], lastDone:0, coachQ:[], coachUntil:0,
        stn:{grill:[],pan:[],larder:[],garnish:[]}, chk:{grill:-9,pan:-9,larder:-9,garnish:-9},
        sat:100, runners:[0,0], paused:false, over:false, closing:false, closeAt:0,
-       scores:[], waits:[], sentQs:[], covers:0, served:0, walked:0, clean:0, awkward:0, dead:0, refires:0,
-       streak:0, bestStreak:0, spiked:0};
+       scores:[], waits:[], sentQs:[], grid:'', covers:0, served:0, walked:0, clean:0, awkward:0, dead:0, refires:0,
+       streak:0, bestStreak:0, spiked:0, log:[]};
+  G.rT = rng('plan');
+  if(kind==='stage') stageSetup(); else planService();
   boardEl.innerHTML=''; winEl.querySelectorAll('.plate').forEach(p=>p.remove());
   $('#spikeN').textContent='0'; $('#openN').textContent='0'; bubbleEl.innerHTML='';
+  coachEl.classList.toggle('on', kind==='stage'); coachTx.textContent='';
   hideOverlay();
+}
+
+/* The whole night's ticket times are planned up front from the seed. If the rail is jammed a ticket waits,
+   but its contents never change, so every player gets the same tickets in the same order. */
+function planService(waveOverride, endAt){
+  const dur=G.cfg.duration, plan=[];
+  let t=2;
+  for(;;){
+    const m=t*240/dur;
+    if(endAt!=null ? t>=endAt : m>=SPAWN_END) break;
+    const w=waveOverride||waveAt(m);
+    plan.push({at:t, w});
+    t += rand(G.rT,w.int[0],w.int[1])*G.cfg.int;
+  }
+  G.plan=plan;
 }
 
 /* ---------- tickets ---------- */
@@ -285,43 +449,55 @@ function nextTable(){
   for(let i=0;i<20;i++){ G.tn = (G.tn%14)+1; if(!used.has(G.tn)) return G.tn; }
   return G.tn;
 }
-function makeTicket(w){
-  const m = MODES[G.mode];
-  const covers = pick(w.cov), ds = [];
-  const add = key => { const it=pick(MENU[key]); const d={id:G.did++,tid:0,key,name:it[0],abbr:it[1],base:it[2],short:it[3],state:'unfired',rem:0,q:100,dead:false,sel:true,mods:{},refire:false,early:false,sentQ:0,ui:{}}; ds.push(d); return d; };
-  for(let i=0;i<covers;i++){
-    if(Math.random()<.38) add('larder');
-    add(Math.random()<.5?'grill':'pan');
-    if(Math.random()<.32) add('garnish');
+function mkDish(it,key){ return {id:G.did++,tid:0,key,name:it[0],abbr:it[1],base:it[2],short:it[3],state:'unfired',rem:0,q:100,dead:false,sel:true,mods:{},refire:false,early:false,sentQ:0,fires:0,checks:0,slowMul:1,ui:{}}; }
+function findDish(abbr){ const menu=MENUS[G.cfg.menu]; for(const k of KEYS){ const it=menu[k].find(x=>x[1]===abbr); if(it) return [it,k]; } return null; }
+// r: the ticket's own seeded generator. spec: a scripted Stage ticket instead of a random one.
+function makeTicket(w,r,spec){
+  const menu=MENUS[G.cfg.menu], ds=[];
+  let covers, allergy=false, rush=false, vip=false;
+  if(spec){
+    covers=spec.covers||2;
+    spec.dishes.forEach(x=>{ const a=typeof x==='string'?{a:x}:x; const f=findDish(a.a); const d=mkDish(f[0],f[1]); if(a.slow) d.slowMul=a.slow; ds.push(d); });
+  } else {
+    covers = pick(r,w.cov);
+    const add = key => { const d=mkDish(pick(r,menu[key]),key); ds.push(d); return d; };
+    for(let i=0;i<covers;i++){
+      if(r()<.38) add('larder');
+      add(r()<.5?'grill':'pan');
+      if(r()<.32) add('garnish');
+    }
+    while(ds.length>9) ds.pop();
+    allergy = r()<w.allergy;
+    rush = r() < w.rush + (w.idx>=2 ? G.cfg.rush : 0);
+    vip = r()<w.vip;
+    if(allergy){ const mains=ds.filter(d=>d.key==='grill'||d.key==='pan'); pick(r,mains).mods.allergy=pick(r,ALLERGIES); }
+    ds.forEach(d=>{ if(d.key==='garnish'&&r()<w.xc) d.mods.xc=true; });
   }
-  while(ds.length>9) ds.pop();
-  const allergy = Math.random()<w.allergy;
-  const rush = Math.random() < w.rush + (w.idx>=2 ? m.rush : 0);
-  const vip = Math.random()<w.vip;
-  if(allergy){ const mains=ds.filter(d=>d.key==='grill'||d.key==='pan'); pick(mains).mods.allergy=pick(ALLERGIES); }
   ds.forEach(d=>{
-    if(d.key==='garnish'&&Math.random()<w.xc) d.mods.xc=true;
     let f=1; if(d.mods.allergy) f*=1.25; if(d.mods.xc) f*=1.35;
     d.base=Math.round(d.base*f);
   });
   const t = {id:G.tid++, table:nextTable(), covers, born:G.t, dishes:ds, rush, vip, allergy, done:false, walked:false,
-             par:(45+6*ds.length)*(rush?.78:1)*(vip?.9:1), splitAt:null, gap:null, refires:0, ui:{}, allergyText:allergy?(ds.find(d=>d.mods.allergy).mods.allergy):''};
+             par:(45+6*ds.length)*(rush?.78:1)*(vip?.9:1)*(G.cfg.parMul||1), splitAt:null, gap:null, refires:0, ui:{}, allergyText:allergy?(ds.find(d=>d.mods.allergy).mods.allergy):''};
   ds.forEach(d=>{ d.tid=t.id; G.dmap[d.id]=d; });
   G.tickets.push(t); G.tmap[t.id]=t;
+  G.log.push(ds.map(d=>d.abbr+(d.mods.allergy?'!':'')+(d.mods.xc?'+':'')).join(',')+(rush?'|R':'')+(vip?'|V':''));
   printerEl.classList.remove('feeding'); void printerEl.offsetWidth; printerEl.classList.add('feeding');
   A.printer();
+  stageEvent('spawn',t);
   return t;
 }
 function trySpawn(){
-  const w=waveAt(G.min), m=MODES[G.mode], open=openTickets();
+  const p=G.plan[G.pi]; if(!p || G.t < p.at+G.delay) return;
+  const open=openTickets();
   const load = open.reduce((a,t)=>a+t.dishes.filter(d=>d.state==='unfired'||d.state==='cooking').length,0);
-  if(open.length>=10 || load>34){ G.nextSpawn=G.t+1.5; return; }
-  makeTicket(w);
-  G.nextSpawn = G.t + rand(w.int[0],w.int[1])*m.int;
+  if(open.length>=10 || load>34){ G.delay=G.t+1.5-p.at; return; }
+  makeTicket(p.w, rng('ticket|'+G.pi));
+  G.pi++;
 }
 
 /* ---------- brigade ---------- */
-function say(key,text,kind){
+function say(key,text){
   const w=ST[key].label;
   bubbleEl.innerHTML='';
   const b=el('div','bub',bubbleEl); el('b','',b,w); b.appendChild(document.createTextNode(text));
@@ -336,33 +512,39 @@ function fireDish(d){
   const t=G.tmap[d.tid]; if(!t||t.done||d.state!=='unfired') return;
   const arr=G.stn[d.key];
   if(arr.length>=ST[d.key].cap){ say(d.key,'Hands full, chef!'); A.err(); return; }
-  d.state='cooking'; d.rem=d.base*rand(.94,1.06);
-  d.early = d.key==='larder' && Math.random()<.16; if(d.early) d.rem*=.5;
-  arr.push(d); A.tap(); say(d.key,pick(ACK));
+  const r=rng('fire|'+d.id+'|'+(d.fires++));
+  d.state='cooking'; d.rem=d.base*rand(r,.94,1.06)*d.slowMul;
+  d.early = d.key==='larder' && !G.cfg.noEarly && r()<.16; if(d.early) d.rem*=.5;
+  arr.push(d); A.tap(); say(d.key,cpick(ACK));
+  stageEvent('fire',d,t);
 }
 function checkDish(d){
   const k=d.key;
   if(G.t-G.chk[k]<1.5){ d.rem+=1.2; say(k,'I heard you, chef!'); A.tap(); return; }
   G.chk[k]=G.t;
-  const arr=G.stn[k], r=rate(k,arr.length);
-  let est = ST[k].optimistic ? d.rem+rand(-2,2) : d.rem/r+rand(-3,3);
+  const r=rng('check|'+d.id+'|'+(d.checks++));
+  const arr=G.stn[k], rt=rate(k,arr.length);
+  let est = ST[k].optimistic ? d.rem+rand(r,-2,2) : d.rem/rt+rand(r,-3,3);
   est=Math.max(0,est);
   let msg;
-  if(k==='pan' && arr.length>=ST.pan.free+1 && Math.random()<.35) msg='Dragging on the '+d.name.toLowerCase()+', give me a minute!';
+  if(k==='pan' && arr.length>=ST.pan.free+1 && r()<.35) msg='Dragging on the '+d.name.toLowerCase()+', give me a minute!';
   else if(est<4) msg='Plating now!';
   else msg=numWord(Math.max(5,Math.round(est/5)*5))+' seconds, chef!';
   d.rem+=.6; A.tap(); say(k,msg);
+  stageEvent('check',d,msg);
 }
 function plateDish(d){
   const arr=G.stn[d.key], i=arr.indexOf(d); if(i>=0) arr.splice(i,1);
   d.state='plated'; d.q = d.early?82:100; d.dead=false; d.sel=true;
   A.clink();
   if(d.early) say(d.key,'Dropped it early, chef!');
+  stageEvent('plate',d);
 }
 function binDish(d){
   const t=G.tmap[d.tid]; if(!t||t.done||!d.dead) return;
   d.state='unfired'; d.dead=false; d.q=100; d.refire=true; d.sel=true; t.refires++; G.refires++;
   A.tap(); toast('Binned. Refire it, chef!',true);
+  stageEvent('bin',d);
 }
 
 /* ---------- sending and scoring ---------- */
@@ -377,12 +559,12 @@ function sendTicket(t){
   if(ri<0){ toast('No runners free, chef!',true); A.err(); return; }
   const all = plates.length===remainingOf(t);
   plates.forEach(d=>{ d.state='sent'; d.sentQ=d.q; G.sentQs.push(d.q); });
-  G.runners[ri]=rand(6,8);
+  G.runners[ri]=rand(rng('run|'+(G.sends++)),6,8);
   A.bell();
   if(all){
     t.gap = t.splitAt!=null ? G.t-t.splitAt : null;
     finishTicket(t);
-  } else if(t.splitAt==null){ t.splitAt=G.t; }
+  } else if(t.splitAt==null){ t.splitAt=G.t; stageEvent('split',t); }
 }
 function sendSel(){ sendTicket(selT()); }
 function settle(t,score,walked){
@@ -390,8 +572,8 @@ function settle(t,score,walked){
   G.sat = clamp(G.sat + (score-62)*.2 - (walked?4:0), 0, 100);
   if(score>=75){ G.streak++; G.bestStreak=Math.max(G.bestStreak,G.streak); } else G.streak=0;
 }
-function retire(t,bad){
-  t.done=true;
+function retire(t){
+  t.done=true; G.lastDone=G.t;
   const c=t.ui.card;
   if(c){ c.classList.add('out'); setTimeout(()=>{ if(c.parentNode) c.remove(); },260); }
   if(G.sel===t.id) G.sel=0;
@@ -407,10 +589,12 @@ function finishTicket(t){
   const score=Math.round(clamp(.5*fr+.5*ts-pen,0,100));
   t.score=score;
   G.served++; G.covers+=t.covers; G.waits.push(wait);
+  G.grid += t.refires>0 ? 'r' : t.gap!=null ? 'a' : 'g';
   settle(t,score,false);
   G.spiked++; $('#spikeN').textContent=G.spiked; A.spike();
   retire(t);
   toast('Table '+t.table+' away: '+score+'%', score<55);
+  stageEvent('away',t);
 }
 function walkout(t,silent){
   if(t.done) return;
@@ -419,16 +603,18 @@ function walkout(t,silent){
     d.state='gone';
   });
   G.walked++; if(t.gap==null&&t.splitAt!=null) G.awkward++;
-  t.score=0; settle(t,0,true); retire(t,true);
-  if(!silent){ toast('Table '+t.table+' walked out!',true); A.err(); }
+  G.grid += 'r';
+  t.score=0; settle(t,0,true); retire(t);
+  if(!silent){ toast('Table '+t.table+' walked out!',true); A.err(); stageEvent('walk',t); }
 }
 
 /* ---------- update ---------- */
 function update(dt){
   if(!G||G.over||G.paused) return;
   G.t+=dt;
-  G.min=Math.min(240,G.t*240/DURATION);
-  if(G.min<SPAWN_END && G.t>=G.nextSpawn) trySpawn();
+  G.min=Math.min(240,G.t*240/G.cfg.duration);
+  if(G.kind==='stage') stageTick(dt);
+  if(G.min<SPAWN_END) trySpawn();
   for(const key of KEYS){
     const arr=G.stn[key]; if(!arr.length) continue;
     const r=rate(key,arr.length);
@@ -439,8 +625,8 @@ function update(dt){
     if(t.done) continue;
     for(const d of t.dishes){
       if(d.state==='plated'&&!d.dead){
-        d.q-=ST[d.key].decay*(d.mods.xc?.6:1)*dt;
-        if(d.q<=0){ d.q=0; d.dead=true; G.dead++; say(d.key,'Dead plate on table '+t.table+'!'); A.err(); toast('Dead plate. Bin it and refire.',true); }
+        d.q-=ST[d.key].decay*(d.mods.xc?.6:1)*(G.cfg.decayMul[d.key]||1)*dt;
+        if(d.q<=0){ d.q=0; d.dead=true; G.dead++; say(d.key,'Dead plate on table '+t.table+'!'); A.err(); toast('Dead plate. Bin it and refire.',true); stageEvent('dead',d); }
       }
     }
     const age=G.t-t.born;
@@ -449,17 +635,170 @@ function update(dt){
   }
   G.sat=Math.max(0,G.sat-.06*overdue*dt);
   for(let i=0;i<G.runners.length;i++) if(G.runners[i]>0) G.runners[i]=Math.max(0,G.runners[i]-dt);
+  if(G.over) return;
   if(G.min>=240&&!G.closing){ G.closing=true; G.closeAt=G.t; toast('Kitchen closing. Clear the rail.'); }
   if(G.sat<=0) return endGame('empty');
   if(G.closing && (openTickets().length===0 || G.t-G.closeAt>CLOSE_GRACE)) endGame('closed');
 }
+
+/* ---------- the Stage ----------
+   Short guided services. The head chef talks you through each one live, one skill at a time. */
+function coach(text, now){
+  if(!G||G.kind!=='stage') return;
+  if(now){ G.coachQ=[]; G.coachUntil=0; }
+  G.coachQ.push(text);
+}
+function coachTick(){
+  if(!G.coachQ.length || G.t<G.coachUntil) return;
+  const tx=G.coachQ.shift();
+  coachTx.textContent=tx; coachTx.style.animation='none'; void coachTx.offsetWidth; coachTx.style.animation='';
+  G.coachUntil=G.t+Math.max(2.4,tx.length*.055);
+}
+function stageEvent(name){
+  if(!G||G.kind!=='stage'||!G.sd.on||!G.sd.on[name]) return;
+  G.sd.on[name].apply(null, Array.prototype.slice.call(arguments,1));
+}
+function stageSetup(){
+  const sd=G.sd;
+  G.script = (sd.tickets||[]).map(x=>Object.assign({},x));
+  if(sd.rush){ planService(WAVES[2], sd.rush); }
+  (sd.intro||[]).forEach(l=>coach(l));
+}
+function stageTick(dt){
+  const open=openTickets();
+  // Scripted tickets: at a time, or a beat after the rail clears.
+  const nx=G.script[0];
+  if(nx && ((nx.after && open.length===0 && G.t>=G.lastDone+(nx.after)) || (!nx.after && G.t>=nx.at))){
+    G.script.shift(); makeTicket(WAVES[0], null, nx);
+  }
+  // A table becomes ready to send.
+  for(const t of open){
+    if(!t.readyNoted && readyPlates(t).length && readyPlates(t).length===remainingOf(t)){ t.readyNoted=true; stageEvent('ready',t); }
+  }
+  stageEvent('tick',dt,open);
+  coachTick();
+  const done = !G.script.length && G.pi>=G.plan.length && open.length===0 && G.tickets.length>0;
+  if(done){ if(!G.sv.endAt) G.sv.endAt=G.t+1.2; else if(G.t>=G.sv.endAt) endGame('stage'); }
+}
+const ticketOf = d => G.tmap[d.tid];
+const byAbbr = (t,a) => t.dishes.find(d=>d.abbr===a);
+const STAGES = [
+  {name:'Read the ticket', sub:'Fire it, watch it, send it.',
+   intro:['Right. You\'re on the pass with me tonight.','Hear that printer? That\'s a ticket.'],
+   tickets:[{at:3, covers:2, dishes:['BGR','DCK']}],
+   on:{
+     spawn(t){ coach('Table '+t.table+', two covers. Burger and a duck. Tap each one to fire it.',true); },
+     fire(d,t){ const n=t.dishes.filter(x=>x.state!=='unfired').length;
+       if(n===1) coach('Heard. Now the other one.',true);
+       else coach('Both away. Red edge is grill, gold is pan. Now we wait.',true); },
+     plate(d){ if(!G.sv.p){ G.sv.p=1; coach('Plate\'s up. It starts dying the second it lands. Watch the ring.',true); } },
+     ready(){ coach('Whole table\'s up. Green SEND button. Hit it.',true); }
+   },
+   verdict(r){ return r>=80?'Clean. That\'s the job: fire, watch, send.' : 'Out the door. Don\'t let plates sit in the window.'; }},
+
+  {name:'Long cooks first', sub:'Fire in the right order so it all lands together.',
+   intro:['Different dishes, different cook times.','Read the whole ticket before you touch it.'],
+   tickets:[{at:3, covers:2, dishes:['RIB','CHP','PRN']},{after:2.5, covers:2, dishes:['LMB','BRT','RNG']}],
+   on:{
+     spawn(t){
+       G.sv.n=(G.sv.n||0)+1;
+       if(G.sv.n===1){ coach('Ribeye thirty seconds. Chips twelve. Prawn seven. FIRE shows the time.',true); coach('Steak first. I\'ll tell you when for the rest.'); }
+       else coach('Your turn. No help. Longest cook first.',true);
+     },
+     fire(d,t){
+       if(G.sv.n!==1) return;
+       const rib=byAbbr(t,'RIB');
+       if(d!==rib && rib.state==='unfired' && !G.sv.warned){ G.sv.warned=1; coach('No! That\'s done in seconds, the steak\'s thirty. It\'ll die waiting.',true); }
+     },
+     tick(dt,open){
+       if(G.sv.n!==1||!open[0]) return;
+       const t=open[0], rib=byAbbr(t,'RIB'), chp=byAbbr(t,'CHP'), prn=byAbbr(t,'PRN');
+       if(!rib||rib.state!=='cooking') return;
+       if(chp.state==='unfired' && rib.rem<=chp.base+1 && !G.sv.hc){ G.sv.hc=1; coach('Chips. Now.',true); }
+       if(prn.state==='unfired' && rib.rem<=prn.base+1 && !G.sv.hp){ G.sv.hp=1; coach('Prawn. Go.',true); }
+     },
+     ready(t){ coach(G.sv.n===1?'All landing together. That\'s timing. Send.':'Up. Send it.',true); },
+     away(t){ if(G.sv.n===1) coach(t.score>=80?'Lovely. Every plate hot.':'Something sat too long. Watch the rings.',true); }
+   },
+   verdict(r){ return r>=80?'You read it and you timed it. That\'s the skill, the rest is speed.' : r>=60?'Getting there. Count back from the longest cook.' : 'Plates are dying waiting for the steak. Longest first, always.'; }},
+
+  {name:'Check the pan', sub:'Ask your sections. Learn who to trust.',
+   intro:['Big table on the pan. Seven pans for one section.','He\'ll tell you he\'s fine. He always does.'],
+   cfg:{parMul:2.5},
+   tickets:[{at:3, covers:4, dishes:['DCK','DCK','DCK','RIS','RIS','BAS','BAS','BGR']}],
+   on:{
+     spawn(){ coach('Fire the pan dishes. Leave the burger for now.',true); },
+     fire(d,t){
+       if(d.key==='pan' && t.dishes.filter(x=>x.key==='pan'&&x.state==='unfired').length===0 && !G.sv.asked){ G.sv.asked=1; coach('Now tap a pan dish while it cooks. Ask him how long.',true); }
+       if(d.abbr==='BGR'){ const pan=G.stn.pan; const worst=pan.length?Math.max.apply(null,pan.map(x=>x.rem/rate('pan',pan.length))):0;
+         coach(worst>32?'Bit keen. That burger\'s going to sit.':'Good call. Burger lands with the pan.',true); }
+     },
+     check(d,msg){
+       if(d.key!=='pan'||G.sv.told) return; G.sv.told=1;
+       coach('Hear that? He counts like he\'s got one pan on. He\'s got seven. Add half again.',true);
+       coach('Burger takes twenty-two. Fire it when you reckon the pan is that far out.');
+     },
+     ready(){ coach('All up. Send.',true); }
+   },
+   verdict(r){ return r>=75?'You didn\'t take his word for it. Good. Trust, then check.' : 'The pan always says he\'s fine. Pad his numbers when he\'s loaded.'; }},
+
+  {name:'Bin and refire', sub:'A dead plate never goes out.',
+   intro:['Sometimes a plate dies. You don\'t send it. Ever.'],
+   cfg:{decayMul:{larder:3}},
+   tickets:[{at:3, covers:2, dishes:['LMB','PRN']}],
+   on:{
+     spawn(){ coach('Lamb and a prawn cocktail. Fire both now. Yes, both. Trust me.',true); },
+     dead(){ coach('Dead plate. That\'s what happens when it waits. Tap it to bin it.',true); },
+     bin(){ coach('Binned. Now refire it. Tap the dish again.',true); },
+     fire(d){ if(d.refire) coach('Good. Seven seconds. Should land with the lamb.',true); },
+     ready(){ coach('Both up and both alive. Send.',true); }
+   },
+   verdict(r,g){ return g.refires? 'A refire costs ten points. A dead plate on a table costs a lot more.' : 'No refire? You timed it. Fine. Now you know the bin is there.'; }},
+
+  {name:'Split the table', sub:'When one dish drags, send the rest.',
+   intro:['One dish is going to drag. Don\'t let it kill the rest.'],
+   cfg:{parMul:2.5},
+   tickets:[{at:3, covers:3, dishes:[{a:'RIS',slow:2},'BRT','TAR','PRN','CHP']}],
+   on:{
+     spawn(){ coach('Fire the lot. Everything. Go.',true); },
+     tick(dt,open){
+       const t=open[0]; if(!t||t.splitAt!=null||G.sv.hint) return;
+       const ris=byAbbr(t,'RIS'), dying=t.dishes.some(d=>d.state==='plated'&&!d.dead&&d.q<75);
+       if(ris.state==='cooking' && ris.rem>18 && dying){ G.sv.hint=1; coach('Risotto\'s dragging. The rest is dying. Hit the amber SPLIT.',true); }
+     },
+     split(){ coach('Split. Clock\'s on. Twenty-eight seconds to land that risotto.',true); },
+     ready(t){ if(t.splitAt!=null) coach('Risotto\'s up. Send it.',true); },
+     away(t){ coach(t.gap!=null&&t.gap<=GRACE?'Clean split. That\'s the call.':t.gap!=null?'Too long after the split. Table felt that.':'Everyone ate together, but look at those rings.',true); }
+   },
+   verdict(r,g){ return g.clean? 'Right call at the right time. Splits are a tool, not a failure.' : 'Next time split before the plates die, then land the last one inside the window.'; }},
+
+  {name:'Proper rush', sub:'Ninety seconds of a Saturday. Everything at once.',
+   intro:['Right. Proper rush. I\'m not holding your hand.','Read every ticket. Longest cooks first. Go.'],
+   cfg:{parMul:1.3, noEarly:false},
+   rush:90,
+   on:{
+     tick(dt,open){
+       if(G.t<(G.sv.cd||0)) return;
+       const dying=open.some(t=>t.dishes.some(d=>d.state==='plated'&&!d.dead&&d.q<35));
+       let l=null;
+       if(dying) l=cpick(['Plates are dying in the window. Get them out.','Window\'s full. Send something.']);
+       else if(open.length>=5) l=cpick(['Rail\'s filling. Stay calm. Longest first.','Check your pan. Don\'t believe him.']);
+       if(l){ coach(l,true); G.sv.cd=G.t+7; }
+     },
+     dead(){ coach('Bin it, refire, move on.',true); G.sv.cd=G.t+5; },
+     walk(){ coach('Table walked. Shake it off. Next.',true); G.sv.cd=G.t+6; },
+     away(t){ if(t.score>=85&&G.t>=(G.sv.cd||0)){ coach(cpick(['Lovely.','That\'s it.','Good. Next.','Yes, chef.']),true); G.sv.cd=G.t+5; } }
+   },
+   verdict(r){ return r>=80?'That\'s a Saturday. You\'re ready for the daily.' : r>=60?'You held it. Just. Go and run a real service.' : 'Rough. Everybody\'s first rush is. Go again.'; }}
+];
+const STAGE_PASS = 55;
 
 /* ---------- rendering ---------- */
 function buildBrigade(){
   brigadeEl.innerHTML='';
   KEYS.forEach(k=>{
     const c=el('div','stn',brigadeEl); el('b','',c,ST[k].label);
-    const s=el('small','',c); const dot=el('span','dot',s); const tx=el('span','',s,'calm');
+    const s=el('small','',c); el('span','dot',s); const tx=el('span','',s,'calm');
     stnUi[k]={c,tx};
   });
 }
@@ -502,7 +841,7 @@ function render(){
   if(!G) return;
   const m=Math.floor(G.min), hh=18+Math.floor(m/60);
   $('#clock').textContent=hh+':'+pad(m%60);
-  $('#wave').textContent = G.closing ? 'Closing' : waveAt(G.min).name+' · '+MODES[G.mode].name;
+  $('#wave').textContent = G.kind==='stage' ? 'Stage '+(G.stageIx+1)+' · '+G.sd.name : G.closing ? 'Closing' : waveAt(G.min).name+' · '+G.cfg.label;
   const sp=Math.round(G.sat); $('#satpct').textContent=sp+'%';
   const sf=$('#satfill'); sf.style.width=sp+'%'; sf.style.background = sp>60?'#58b368':sp>30?'#e6b04a':'#d9534f';
   const open=openTickets();
@@ -553,24 +892,91 @@ function setMuteIcon(){
 }
 
 /* ---------- overlays ---------- */
-function showOverlay(html){ ovEl.innerHTML=html; ovEl.style.display='flex'; }
+function showOverlay(html,solid){ ovEl.innerHTML=html; ovEl.style.display='flex'; ovEl.classList.toggle('solid',!!solid); ovEl.scrollTop=0; }
 function hideOverlay(){ ovEl.style.display='none'; ovEl.innerHTML=''; }
+function stars(r){ const n=r>=92?5:r>=82?4:r>=70?3:r>=55?2:r>=35?1:0; return '★'.repeat(n)+'☆'.repeat(5-n); }
+const SQ = {g:'🟩', a:'🟨', r:'🟥'};
+function squares(grid,per){ per=per||8; let out=''; for(let i=0;i<grid.length;i++){ out+=SQ[grid[i]]||''; if((i+1)%per===0&&i<grid.length-1) out+='\n'; } return out; }
+const niceDate = d => new Date(d+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+
+/* Today's daily as this device knows it: server status when signed in, local record otherwise. */
+function todayStatus(){
+  const date=todayUtc();
+  if(NET.token && NET.daily && NET.daily.date===date && NET.daily.status) return NET.daily.status;
+  const l=localDaily(date);
+  return l ? {started:true, finished:!!l.finished, pct:l.pct, stars:l.stars, grid:l.grid||''} : null;
+}
+function currentStreak(){ return NET.token ? NET.streak : localStreak(todayUtc()); }
+
 function startScreen(){
-  let h='<div class="card"><h1>THE PASS</h1><div class="sub">Head chef. Friday night. Full book.</div>';
-  h+='<div class="modes">';
+  const date=todayUtc(), info=dailyInfo(date), st=todayStatus();
+  const fresh = !save.played && !save.stage;
+  let h='<div class="card"><h1>THE PASS</h1><div class="sub">Head chef. Tonight\'s service. Full book.</div>';
+  if(st&&st.finished){
+    h+='<button class="daily done" data-act="report"><b>DAILY #'+info.number+' · '+info.short.toUpperCase()+' · '+st.pct+'%</b><small><span class="stars">'+stars(st.pct)+'</span> Done for today. Tap to share. Next service at midnight UTC.</small></button>';
+  } else if(st&&st.started){
+    h+='<button class="daily done" data-act="board"><b>DAILY #'+info.number+' · '+info.short.toUpperCase()+'</b><small>You started today\'s service and left the pass. It still counts. Back tomorrow, chef.</small></button>';
+  } else {
+    h+='<button class="daily" data-act="dailybrief"><b>DAILY SERVICE #'+info.number+'</b><small>'+info.name+': '+info.title+'. Same tickets for everyone. One go.</small></button>';
+  }
+  const sk=currentStreak();
+  h+='<div class="stats">'+(sk?'Daily streak '+sk+' day'+(sk>1?'s':'')+' · ':'')+(NET.token?'Signed in as '+esc(NET.name):'Playing as a guest')+'</div>';
+  h+='<div class="sect">LEARN</div><div class="modes"><button class="mode'+(fresh?' next':'')+'" data-act="stages"><b>The Stage'+(save.stage?' ('+Math.min(save.stage,STAGES.length)+'/'+STAGES.length+')':'')+'</b><small>'+(fresh?'New here? Start your stage. The head chef talks you through it.':'Short guided services with the head chef. One skill at a time.')+'</small></button></div>';
+  h+='<div class="sect">PRACTICE</div><div class="modes">';
   MODES.forEach((m,i)=>{
     const locked=i>save.unlocked;
     h+='<button class="mode'+(i===chosenMode&&!locked?' on':'')+(locked?' locked':'')+'" data-act="mode" data-i="'+i+'"><b>'+m.name+(save.best[i]?' ('+save.best[i]+'%)':'')+'</b><small>'+(locked?'Locked: '+m.need:m.sub)+'</small></button>';
   });
-  h+='</div><button class="go" data-act="start">START SERVICE</button>';
-  h+='<div class="rule"></div><div class="how">Every open ticket sits on the rail, oldest at the top. Tap a dish to fire it to its station, and tap it again while it cooks to check on the chef. Plates land in the window and cool by the second, so time your calls to get a table out together. When a ticket has plates ready, a button appears on it: send the whole table, or split it when one dish is dragging and the rest are dying. After a split you have about 28 seconds to land the last plate. The number next to each station is how many dishes are still outstanding on it.</div>';
-  h+='<div class="stats">Longest streak '+save.streak+' · Services run '+save.played+'</div></div>';
+  h+='</div><button class="go alt" data-act="start">START PRACTICE</button>';
+  h+='<div class="links"><button data-act="board">LEADERBOARD</button><button data-act="account">'+(NET.token?'ACCOUNT':'SIGN IN')+'</button>'+(CHARITY.enabled?'<button data-act="charity">SUPPORT</button>':'')+'</div>';
+  h+='<div class="stats">Longest table streak '+save.streak+' · Services run '+save.played+'</div></div>';
+  showOverlay(h);
+}
+function dailyBrief(){
+  const info=dailyInfo(todayUtc());
+  let h='<div class="card"><h1>DAILY</h1><div class="sub">#'+info.number+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
+  h+='<div class="verdict">'+info.title+'.</div>';
+  h+='<div class="prose"><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
+  h+=NET.token ? '<p>Your result goes on today\'s leaderboard as <b>'+esc(NET.name)+'</b>.</p>' : '<p>You\'re playing as a guest, so your result stays on this device. <a href="#" data-act="account">Sign in</a> to get on the leaderboard and keep your streak on every device.</p>';
+  h+='</div><button class="go" data-act="dailygo">START THE SERVICE</button><button class="go alt" data-act="home">NOT YET</button></div>';
+  showOverlay(h);
+}
+function stageMenu(){
+  let h='<div class="card"><h1>THE STAGE</h1><div class="sub">You\'re the new stagiaire. Listen to chef.</div><div class="modes">';
+  STAGES.forEach((s,i)=>{
+    const done=i<save.stage, next=i===save.stage;
+    h+='<button class="mode'+(next?' next':'')+'" data-act="stage" data-i="'+i+'"><b>'+(i+1)+'. '+s.name+(done?' ✓':'')+'</b><small>'+s.sub+'</small></button>';
+  });
+  h+='</div><button class="go alt" data-act="home">BACK</button></div>';
   showOverlay(h);
 }
 function pauseScreen(){
-  showOverlay('<div class="card"><h1>PAUSED</h1><div class="sub">Service is on hold.</div><button class="go" data-act="resume">RESUME</button><button class="go alt" data-act="quit">LEAVE THE PASS</button></div>');
+  showOverlay('<div class="card"><h1>PAUSED</h1><div class="sub">Service is on hold.</div><button class="go" data-act="resume">RESUME</button><button class="go alt" data-act="quit">LEAVE THE PASS</button>'+(G&&G.kind==='daily'?'<div class="stats">Leaving ends today\'s daily. It still counts as your go.</div>':'')+'</div>', G&&G.kind==='daily');
 }
-function stars(r){ const n=r>=92?5:r>=82?4:r>=70?3:r>=55?2:r>=35?1:0; return '★'.repeat(n)+'☆'.repeat(5-n); }
+function shareText(r){
+  const head='The Pass #'+r.number+' ('+r.short+') '+r.rating+'% '+stars(r.rating);
+  return head+'\n'+squares(r.grid)+'\n'+niceDate(r.date)+'\n'+location.origin+location.pathname.replace(/index\.html$/,'');
+}
+let lastDaily=null;
+async function doShare(){
+  const r=lastDaily || (()=>{ const l=localDaily(todayUtc()); return l&&l.finished?l:null; })();
+  if(!r){ toast('Nothing to share yet.',true); return; }
+  const text=shareText(r);
+  if(navigator.share){ try{ await navigator.share({text}); return; }catch(e){ if(e&&e.name==='AbortError') return; } }
+  try{ await navigator.clipboard.writeText(text); toast('Copied. Paste it anywhere.'); }
+  catch(e){ showOverlay('<div class="card"><h1>SHARE</h1><div class="prose"><p>Copy this:</p></div><pre style="white-space:pre-wrap;user-select:text;-webkit-user-select:text;font-size:14px">'+esc(text)+'</pre><button class="go alt" data-act="home">DONE</button></div>'); }
+}
+function dailyReportFromSave(){
+  const l=localDaily(todayUtc()); const st=todayStatus();
+  const r = l&&l.finished ? l : st&&st.finished ? Object.assign({rating:st.pct, grid:st.grid}, dailyInfo(todayUtc())) : null;
+  if(!r){ startScreen(); return; }
+  lastDaily=r;
+  let h='<div class="card"><h1>THE PASS</h1><div class="sub">Daily #'+r.number+' · '+r.short+' · '+niceDate(r.date)+'</div><div class="rule"></div>';
+  h+='<div class="big"><div class="pct">'+r.rating+'%</div><div class="stars">'+stars(r.rating)+'</div></div><div class="sq">'+squares(r.grid).replace(/\n/g,'<br>')+'</div>';
+  h+='<button class="go" data-act="share">SHARE</button><button class="go alt" data-act="board">LEADERBOARD</button><button class="go alt" data-act="home">BACK</button></div>';
+  showOverlay(h);
+}
+
 function endGame(reason){
   if(G.over) return; G.over=true;
   G.tickets.forEach(t=>{ if(!t.done) walkout(t,true); });
@@ -578,26 +984,66 @@ function endGame(reason){
   const rating = sw?Math.round(sv/sw):0;
   const avgT = G.waits.length ? G.waits.reduce((a,b)=>a+b,0)/G.waits.length : 0;
   const fresh = G.sentQs.length ? Math.round(G.sentQs.reduce((a,b)=>a+b,0)/G.sentQs.length) : 0;
-  const isBest = rating>save.best[G.mode];
-  if(isBest) save.best[G.mode]=rating;
+  let isBest=false, unlockMsg='';
   save.streak=Math.max(save.streak,G.bestStreak); save.played++;
-  let unlockMsg='';
-  if(G.mode===0&&rating>=70&&save.unlocked<1){ save.unlocked=1; unlockMsg='Saturday Night unlocked.'; }
-  if(G.mode===1&&rating>=75&&save.unlocked<2){ save.unlocked=2; unlockMsg='Christmas Eve unlocked.'; }
+  if(G.kind==='practice'){
+    isBest = rating>save.best[G.mode];
+    if(isBest) save.best[G.mode]=rating;
+    if(G.mode===0&&rating>=70&&save.unlocked<1){ save.unlocked=1; unlockMsg='Saturday Night unlocked.'; }
+    if(G.mode===1&&rating>=75&&save.unlocked<2){ save.unlocked=2; unlockMsg='Christmas Eve unlocked.'; }
+  }
+  const passed = G.kind==='stage' && rating>=STAGE_PASS;
+  if(passed) save.stage=Math.max(save.stage,G.stageIx+1);
+  const res={mode:G.mode,kind:G.kind,rating,covers:G.covers,avgTicket:avgT,freshness:fresh,clean:G.clean,awkward:G.awkward,dead:G.dead,refires:G.refires,streak:G.bestStreak,reason,
+             tables:G.served, walked:G.walked, grid:G.grid, seed:G.seed};
+  if(G.kind==='daily'){
+    Object.assign(res, {date:G.info.date, number:G.info.number, short:G.info.short});
+    save.daily = {date:G.info.date, number:G.info.number, short:G.info.short, started:true, finished:true, rating, pct:rating, stars:stars(rating), grid:G.grid};
+    lastDaily = save.daily;
+  }
+  if(G.kind==='stage') res.stage=G.stageIx+1;
   writeSave();
-  const res={mode:G.mode,rating,covers:G.covers,avgTicket:avgT,freshness:fresh,clean:G.clean,awkward:G.awkward,dead:G.dead,refires:G.refires,streak:G.bestStreak,reason};
   G.result=res;
   try{ if(window.PASS_HOOKS&&typeof window.PASS_HOOKS.onServiceEnd==='function') window.PASS_HOOKS.onServiceEnd(res); }catch(e){}
+  if(headless) return;
+  if(G.kind==='stage') return stageReport(res, passed);
   const row=(a,b)=>'<div class="rrow"><span>'+a+'</span><i></i><b>'+b+'</b></div>';
-  let h='<div class="card"><h1>THE PASS</h1><div class="sub">'+MODES[G.mode].name+' · Pass report</div><div class="rule"></div>';
+  const sub = G.kind==='daily' ? 'Daily #'+G.info.number+' · '+G.info.name+' · Pass report' : MODES[G.mode].name+' · Pass report';
+  let h='<div class="card"><h1>THE PASS</h1><div class="sub">'+sub+'</div><div class="rule"></div>';
   h+='<div class="big"><div class="pct">'+rating+'%</div><div class="stars">'+stars(rating)+'</div></div>';
-  h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+$('#clock').textContent+'.':'Service complete. 22:00.')+'</div><div class="rule"></div>';
+  if(G.kind==='daily') h+='<div class="sq">'+squares(G.grid).replace(/\n/g,'<br>')+'</div>';
+  h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+$('#clock').textContent+'.':reason==='left'?'You left the pass at '+$('#clock').textContent+'.':'Service complete. 22:00.')+'</div><div class="rule"></div>';
   h+=row('Covers served',G.covers)+row('Tables away',G.served+' / '+(G.served+G.walked))+row('Average ticket time',fmt(avgT))+row('Food freshness',fresh+'%');
   h+=row('Split calls',G.clean+' clean, '+G.awkward+' awkward')+row('Dead plates / refires',G.dead+' / '+G.refires)+row('Best streak',G.bestStreak+' tables');
   h+='<div class="rule"></div>';
   if(isBest&&rating>0) h+='<div class="note">New personal best.</div>';
   if(unlockMsg) h+='<div class="note">'+unlockMsg+'</div>';
-  h+='<button class="go" data-act="again" style="margin-top:12px">BACK TO THE PASS</button></div>';
+  if(G.kind==='daily'){
+    h+='<div class="note dim" id="dailyNote">'+(NET.token?'Sending your result...':'Guest result, kept on this device. Sign in tomorrow to get on the board.')+'</div>';
+    h+='<button class="go" data-act="share" style="margin-top:12px">SHARE</button><button class="go alt" data-act="board">LEADERBOARD</button>';
+    h+='<button class="go alt" data-act="again">BACK TO THE PASS</button>';
+  } else h+='<button class="go" data-act="again" style="margin-top:12px">BACK TO THE PASS</button>';
+  if(CHARITY.enabled) h+='<div class="stats"><a href="#" data-act="charity" style="color:#555">'+esc(CHARITY.reportLine)+'</a></div>';
+  h+='</div>';
+  showOverlay(h);
+}
+function stageReport(res, passed){
+  const i=G.stageIx, sd=STAGES[i];
+  let h='<div class="card"><h1>STAGE '+(i+1)+'</h1><div class="sub">'+sd.name+'</div><div class="rule"></div>';
+  h+='<div class="big"><div class="pct">'+res.rating+'%</div><div class="stars">'+stars(res.rating)+'</div></div>';
+  h+='<div class="verdict">"'+esc(sd.verdict(res.rating,G))+'"</div><div class="stats" style="margin-top:0">Head chef</div><div class="rule"></div>';
+  if(passed && i+1<STAGES.length) h+='<button class="go" data-act="stage" data-i="'+(i+1)+'">NEXT: '+STAGES[i+1].name.toUpperCase()+'</button>';
+  else if(passed) h+='<div class="note">Stage complete. You\'re ready for the daily, chef.</div><button class="go" data-act="home">TO THE PASS</button>';
+  h+='<button class="go'+(passed?' alt':'')+'" data-act="stage" data-i="'+i+'">GO AGAIN</button><button class="go alt" data-act="stages">ALL STAGES</button></div>';
+  showOverlay(h);
+}
+function charityPage(){
+  const c=CHARITY;
+  let h='<div class="card"><h1 style="font-size:20px;letter-spacing:.15em">SUPPORT</h1><div class="sub">'+esc(c.name)+'</div><div class="rule"></div><div class="prose">';
+  c.note.forEach(p=>{ h+='<p>'+esc(p)+'</p>'; });
+  h+='<p style="text-align:right">'+esc(c.noteBy)+'</p></div><div class="rule"></div><div class="prose"><p><b>'+esc(c.support)+'</b></p>';
+  h+='<p><a href="'+esc(c.url)+'" target="_blank" rel="noopener">Get support or donate at '+esc(c.url.replace(/^https?:\/\//,''))+'</a></p></div>';
+  h+='<div class="small">'+esc(c.disclaimer)+'</div><button class="go alt" data-act="home" style="margin-top:12px">BACK</button></div>';
   showOverlay(h);
 }
 
@@ -630,18 +1076,49 @@ winEl.addEventListener('click',e=>{
   }
   d.sel=!d.sel; A.tap();
 });
-$('#btnMute').addEventListener('click',()=>{ A.muted=!A.muted; save.muted=A.muted; writeSave(); setMuteIcon(); A.unlock(); });
+$('#btnMute').addEventListener('click',()=>{ A.muted=!A.muted; save.muted=A.muted; writeSave(); setMuteIcon(); A.unlock(); Online.syncSoon(); });
 $('#btnPause').addEventListener('click',()=>{ if(G&&!G.over&&!G.paused){ G.paused=true; pauseScreen(); } });
-document.addEventListener('visibilitychange',()=>{ if(document.hidden&&G&&!G.over&&!G.paused){ G.paused=true; pauseScreen(); } });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden&&G&&!G.over&&!G.paused&&!headless){ G.paused=true; pauseScreen(); } });
 ovEl.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]'); if(!b) return;
+  e.preventDefault();
   const a=b.dataset.act;
   if(a==='mode'){ const i=+b.dataset.i; if(i<=save.unlocked){ chosenMode=i; startScreen(); } }
-  else if(a==='start'){ newGame(chosenMode); }
+  else if(a==='start'){ newGame(chosenMode,{kind:'practice'}); }
   else if(a==='resume'){ G.paused=false; hideOverlay(); }
-  else if(a==='quit'){ G.over=true; startScreen(); }
-  else if(a==='again'){ startScreen(); }
+  else if(a==='quit'){ if(G&&G.kind==='daily'&&!G.over){ endGame('left'); } else { if(G) G.over=true; startScreen(); } }
+  else if(a==='again'||a==='home'){ startScreen(); }
+  else if(a==='dailybrief'){ dailyBrief(); }
+  else if(a==='dailygo'){ startDaily(b); }
+  else if(a==='report'){ dailyReportFromSave(); }
+  else if(a==='share'){ doShare(); }
+  else if(a==='stages'){ stageMenu(); }
+  else if(a==='stage'){ newGame(0,{kind:'stage', stage:+b.dataset.i}); }
+  else if(a==='charity'){ charityPage(); }
+  else if(a==='board'){ Online.board(b.dataset.scope||'day'); }
+  else if(a==='account'){ Online.account(); }
+  else if(Online.act) Online.act(a,b);
 });
+
+/* Starting the daily: the attempt is recorded BEFORE the first ticket prints. */
+async function startDaily(btn){
+  const info=dailyInfo(todayUtc());
+  if(todayStatus()){ toast('You\'ve already run today\'s service.',true); startScreen(); return; }
+  btn.disabled=true; btn.textContent='CHECKING IN...';
+  if(NET.token){
+    const r=await Online.startDaily(info.date);
+    if(!r.ok){
+      btn.disabled=false; btn.textContent='START THE SERVICE';
+      if(r.status===409){ NET.daily={date:info.date,status:r.data.status||{started:true,finished:false}}; toast('You\'ve already run today\'s service.',true); startScreen(); }
+      else toast(r.error||'Can\'t reach the pass. Try again.',true);
+      return;
+    }
+    NET.daily={date:info.date,status:{started:true,finished:false}}; NET.streak=r.data.streak||NET.streak;
+  }
+  save.daily={date:info.date, number:info.number, short:info.short, started:true, finished:false};
+  markLocalPlayed(info.date); writeSave();
+  newGame(-1,{kind:'daily', daily:info});
+}
 
 /* ---------- boot ---------- */
 loadSave(); A.muted=!!save.muted; setMuteIcon(); buildBrigade();
@@ -649,15 +1126,124 @@ let lastTs=0, acc=0;
 function frame(ts){
   requestAnimationFrame(frame);
   const dt=Math.min(.1,(ts-lastTs)/1000||0); lastTs=ts;
+  if(headless) return;
   if(G&&!G.paused&&!G.over) update(dt);
   acc+=dt; if(acc>=.1){ acc=0; render(); }
 }
+
+/* ---------- online: accounts, daily attempts, leaderboards (Netlify functions under /api) ---------- */
+const Online = (function(){
+  const online = /^https?:/.test(location.protocol);
+  try{ const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); if(s&&s.token){ NET.token=s.token; NET.name=s.name; } }catch(e){}
+  const keep = () => { try{ if(NET.token) localStorage.setItem(SESSION_KEY,JSON.stringify({token:NET.token,name:NET.name})); else localStorage.removeItem(SESSION_KEY); }catch(e){} };
+  async function api(path, body, method){
+    if(!online) return {ok:false, status:0, error:'Offline.'};
+    const headers={'Content-Type':'application/json'};
+    if(NET.token) headers.Authorization='Bearer '+NET.token;
+    let res;
+    try{ res=await fetch(path,{method:method||(body?'POST':'GET'),headers,body:body?JSON.stringify(body):undefined,cache:'no-store'}); }
+    catch(e){ return {ok:false,status:0,error:'Can\'t reach the pass. Check your connection.'}; }
+    const data=await res.json().catch(()=>({}));
+    if(res.status===401 && NET.token && !(body&&body.action)){ NET.token=null; NET.name=null; keep(); }
+    return {ok:res.ok, status:res.status, data, error:data.error||('Request failed ('+res.status+').')};
+  }
+  async function refresh(){
+    const r=await api('/api/daily');
+    if(r.ok){ NET.daily={date:r.data.today.date, status:r.data.status}; NET.streak=r.data.streak||0; }
+    if(NET.token){
+      const p=await api('/api/progress');
+      if(p.ok){ mergeProgress(p.data.progress); syncSoon(); }
+    }
+    if(!G||G.over) { if(ovEl.style.display==='flex' && /THE PASS/.test(ovEl.textContent) && $('.daily')) startScreen(); }
+  }
+  let syncT=null;
+  function syncSoon(){ if(!NET.token) return; clearTimeout(syncT); syncT=setTimeout(()=>{ api('/api/progress',{progress:progressOf()}).then(r=>{ if(r.ok) mergeProgress(r.data.progress); }); },600); }
+  async function onEnd(res){
+    if(!NET.token) return;
+    syncSoon();
+    if(res.kind!=='daily') return;
+    const r=await api('/api/daily',{action:'finish', date:res.date, pct:res.rating, grid:res.grid, covers:res.covers, tables:res.tables, walked:res.walked,
+      dead:res.dead, refires:res.refires, clean:res.clean, awkward:res.awkward, freshness:res.freshness, avgTicket:res.avgTicket});
+    const n=$('#dailyNote');
+    if(r.ok){ NET.daily={date:res.date,status:r.data.status}; NET.streak=r.data.streak; if(n) n.textContent='On the board. Daily streak: '+r.data.streak+' day'+(r.data.streak===1?'':'s')+'.'; }
+    else if(n) n.textContent='Result not recorded: '+r.error;
+  }
+  async function startDaily(date){ return api('/api/daily',{action:'start',date}); }
+
+  let boardScope='day';
+  async function board(scope){
+    boardScope=scope;
+    const head='<div class="card"><h1 style="font-size:20px">LEADERBOARD</h1><div class="tabs"><button class="'+(scope==='day'?'on':'')+'" data-act="board" data-scope="day">TODAY</button><button class="'+(scope==='all'?'on':'')+'" data-act="board" data-scope="all">ALL TIME</button></div>';
+    const tail='<button class="go alt" data-act="home" style="margin-top:12px">BACK</button></div>';
+    showOverlay(head+'<div class="stats">Loading...</div>'+tail);
+    const r=await api('/api/board?scope='+scope);
+    if(boardScope!==scope) return;
+    let h='';
+    if(!r.ok){ h='<div class="stats">'+esc(r.error)+'</div>'; }
+    else if(scope==='day'){
+      h+='<div class="stats" style="margin:0 0 6px">Daily #'+r.data.number+' · '+r.data.name+' · '+r.data.played+' chef'+(r.data.played===1?'':'s')+'</div>';
+      if(!r.data.rows.length) h+='<div class="stats">Nobody\'s finished today\'s service yet.</div>';
+      else { h+='<table class="lb">'; r.data.rows.forEach((x,i)=>{ h+='<tr class="'+(x.name===NET.name?'me':'')+'"><td>'+(i+1)+'</td><td class="n">'+esc(x.name)+'</td><td class="g">'+squares(x.grid,99)+'</td><td class="r"><b>'+x.pct+'%</b></td></tr>'; }); h+='</table>'; }
+    } else {
+      h+='<div class="stats" style="margin:0 0 6px">Average daily score. Ranked after '+r.data.minDays+' services.</div>';
+      if(!r.data.rows.length) h+='<div class="stats">No results yet.</div>';
+      else { h+='<table class="lb"><tr><td></td><td class="n small">CHEF</td><td class="r small">AVG</td><td class="r small">DAYS</td><td class="r small">STREAK</td></tr>';
+        r.data.rows.forEach((x,i)=>{ h+='<tr class="'+(x.name===NET.name?'me':'')+'"><td>'+(x.ranked?i+1:'-')+'</td><td class="n">'+esc(x.name)+'</td><td class="r"><b>'+x.avg+'%</b></td><td class="r">'+x.days+'</td><td class="r">'+x.streak+'</td></tr>'; }); h+='</table>'; }
+    }
+    if(!NET.token) h+='<div class="stats"><a href="#" data-act="account" style="color:#c0392b">Sign in</a> to get on the board.</div>';
+    showOverlay(head+h+tail);
+  }
+
+  function account(msg){
+    let h='<div class="card"><h1 style="font-size:20px">'+(NET.token?'ACCOUNT':'SIGN IN')+'</h1>';
+    if(NET.token){
+      h+='<div class="sub">Signed in as <b>'+esc(NET.name)+'</b></div><div class="rule"></div><div class="prose"><p>Your best scores, unlocks, Stage progress and settings follow you to any device you sign in on.</p><p>Daily streak: <b>'+NET.streak+'</b></p></div>';
+      h+='<button class="go alt" data-act="logout">SIGN OUT</button><button class="go alt" data-act="home">BACK</button></div>';
+      return showOverlay(h);
+    }
+    h+='<div class="sub">A name and a PIN. That\'s it.</div><div class="rule"></div>';
+    h+='<label>CHEF NAME</label><input id="accName" maxlength="20" autocomplete="username" autocapitalize="words" value="'+esc((msg&&msg.name)||'')+'">';
+    h+='<label>PIN (4 TO 6 DIGITS)</label><input id="accPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="current-password">';
+    h+='<div class="err" id="accErr">'+esc((msg&&msg.error)||'')+'</div>';
+    if(msg&&msg.suggestions&&msg.suggestions.length){ h+='<div class="sugg">'; msg.suggestions.forEach(s=>{ h+='<button data-act="suggest" data-n="'+esc(s)+'">'+esc(s)+'</button>'; }); h+='</div>'; }
+    h+='<button class="go" data-act="login">SIGN IN</button><button class="go alt" data-act="register">NEW CHEF: SIGN UP</button>';
+    h+='<div class="stats">No two digits the same back to back in a new PIN. No email needed. Write your PIN down: there\'s no reset.</div>';
+    h+='<button class="go alt" data-act="home">BACK</button></div>';
+    showOverlay(h);
+    const pinEl=$('#accPin'); if(pinEl) pinEl.addEventListener('keydown',e=>{ if(e.key==='Enter') auth('login'); });
+    if(!msg) setTimeout(()=>{ const i=$('#accName'); if(i) i.focus(); },50);
+  }
+  async function auth(action){
+    const name=($('#accName')||{}).value||'', pin=($('#accPin')||{}).value||'';
+    const err=$('#accErr'); if(err) err.textContent='...';
+    const r=await api('/api/auth',{action,name:name.trim(),pin,progress:progressOf()});
+    if(!r.ok) return account({name, error:r.error, suggestions:r.data.suggestions});
+    NET.token=r.data.token; NET.name=r.data.name; NET.streak=r.data.streak||0; keep();
+    mergeProgress(r.data.progress);
+    await refresh();
+    toast('Welcome to the pass, '+NET.name+'.');
+    startScreen();
+  }
+  async function act(a,b){
+    if(a==='login') return auth('login');
+    if(a==='register') return auth('register');
+    if(a==='suggest'){ const i=$('#accName'); if(i) i.value=b.dataset.n; return; }
+    if(a==='logout'){ await api('/api/auth',{action:'logout'}); NET.token=null; NET.name=null; NET.daily=null; NET.streak=0; keep(); startScreen(); }
+  }
+  // Every service result goes through the existing hook.
+  const prev = window.PASS_HOOKS && window.PASS_HOOKS.onServiceEnd;
+  window.PASS_HOOKS = window.PASS_HOOKS || {};
+  window.PASS_HOOKS.onServiceEnd = function(res){ try{ if(prev) prev(res); }catch(e){} return onEnd(res); };
+  return {refresh, syncSoon, startDaily, board, account, act};
+})();
+
 requestAnimationFrame(frame);
 startScreen();
+Online.refresh();
 
-/* handles for a future leaderboard layer and for testing */
-window.PASS_HOOKS = window.PASS_HOOKS || {};
-window.__pass = {newGame,update,render,state:()=>G,fire:fireDish,check:checkDish,select:selectTicket,send:sendSel,bin:binDish,endGame,save:()=>save,A};
+/* handles for testing */
+window.__pass = {newGame,update,render,state:()=>G,fire:fireDish,check:checkDish,select:selectTicket,send:sendSel,sendTicket,bin:binDish,endGame,save:()=>save,A,
+  headless(on){ headless=!!on; }, DAYS, LAUNCH, DAILY_DURATION, dailyInfo, STAGES, shareText, seeded};
 
 if('serviceWorker' in navigator && /^https?:/.test(location.protocol)){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
