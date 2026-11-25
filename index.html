@@ -197,7 +197,8 @@ const SPAWN_END = 205;     // game minutes after which no new tickets print, in 
 // tables the same time to cook as the full one does, instead of cutting them off at close.
 const LAST_CALL = DURATION*(1-SPAWN_END/240);
 const GRACE = 28;          // split table grace window, real seconds
-const CLOSE_GRACE = 25;    // seconds allowed to clear the rail after 22:00
+// 22:00 shuts the doors, not the kitchen: tables already on the rail are still cooked and sent after it,
+// and the service ends once the rail is clear. Tables left far too long still walk out as normal.
 const SAVE_KEY = 'thepass.save.v1';
 const SESSION_KEY = 'thepass.session.v1';
 
@@ -652,9 +653,9 @@ function update(dt){
   G.sat=Math.max(0,G.sat-.06*overdue*dt);
   for(let i=0;i<G.runners.length;i++) if(G.runners[i]>0) G.runners[i]=Math.max(0,G.runners[i]-dt);
   if(G.over) return;
-  if(G.min>=240&&!G.closing){ G.closing=true; G.closeAt=G.t; toast('Kitchen closing. Clear the rail.'); }
+  if(G.min>=240&&!G.closing){ G.closing=true; G.closeAt=G.t; toast('22:00. Doors shut. Get the last tables out.'); }
   if(G.sat<=0) return endGame('empty');
-  if(G.closing && (openTickets().length===0 || G.t-G.closeAt>CLOSE_GRACE)) endGame('closed');
+  if(G.closing && openTickets().length===0) endGame('closed');
 }
 
 /* ---------- the Stage ----------
@@ -855,7 +856,7 @@ function mkPlate(t,d){
 }
 function render(){
   if(!G) return;
-  const m=Math.floor(G.min), hh=18+Math.floor(m/60);
+  const m=Math.floor(G.t*240/G.cfg.duration), hh=18+Math.floor(m/60);
   $('#clock').textContent=hh+':'+pad(m%60);
   $('#wave').textContent = G.kind==='stage' ? 'Stage '+(G.stageIx+1)+' · '+G.sd.name : G.closing ? 'Closing' : waveAt(G.min).name+' · '+G.cfg.label;
   const sp=Math.round(G.sat); $('#satpct').textContent=sp+'%';
@@ -1031,7 +1032,7 @@ function endGame(reason){
   let h='<div class="card"><h1>THE PASS</h1><div class="sub">'+sub+'</div><div class="rule"></div>';
   h+='<div class="big"><div class="pct">'+rating+'%</div><div class="stars">'+stars(rating)+'</div></div>';
   if(G.kind==='daily') h+='<div class="sq">'+squares(G.grid).replace(/\n/g,'<br>')+'</div>';
-  h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+$('#clock').textContent+'.':reason==='left'?'You left the pass at '+$('#clock').textContent+'.':'Service complete. 22:00.')+'</div><div class="rule"></div>';
+  h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+$('#clock').textContent+'.':reason==='left'?'You left the pass at '+$('#clock').textContent+'.':'Service complete. Last table away at '+$('#clock').textContent+'.')+'</div><div class="rule"></div>';
   h+=row('Covers served',G.covers)+row('Tables away',G.served+' / '+(G.served+G.walked))+row('Average ticket time',fmt(avgT))+row('Food freshness',fresh+'%');
   h+=row('Split calls',G.clean+' clean, '+G.awkward+' awkward')+row('Dead plates / refires',G.dead+' / '+G.refires)+row('Best streak',G.bestStreak+' tables');
   h+='<div class="rule"></div>';
