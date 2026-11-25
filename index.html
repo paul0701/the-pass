@@ -192,7 +192,10 @@ button{font-family:inherit;color:inherit}
 
 /* ---------- constants ---------- */
 const DURATION = 330;      // real seconds for 18:00 to 22:00 in Practice
-const SPAWN_END = 205;     // game minutes after which no new tickets print
+const SPAWN_END = 205;     // game minutes after which no new tickets print, in the full length service
+// Real seconds between the last new ticket and 22:00. Fixed, so a shorter service (the daily) gives the last
+// tables the same time to cook as the full one does, instead of cutting them off at close.
+const LAST_CALL = DURATION*(1-SPAWN_END/240);
 const GRACE = 28;          // split table grace window, real seconds
 const CLOSE_GRACE = 25;    // seconds allowed to clear the rail after 22:00
 const SAVE_KEY = 'thepass.save.v1';
@@ -448,7 +451,7 @@ function planService(waveOverride, endAt){
   let t=2;
   for(;;){
     const m=t*240/dur;
-    if(endAt!=null ? t>=endAt : m>=SPAWN_END) break;
+    if(endAt!=null ? t>=endAt : t>=dur-LAST_CALL) break;
     const w=waveOverride||waveAt(m);
     plan.push({at:t, w});
     t += rand(G.rT,w.int[0],w.int[1])*G.cfg.int;
@@ -627,7 +630,7 @@ function update(dt){
   G.t+=dt;
   G.min=Math.min(240,G.t*240/G.cfg.duration);
   if(G.kind==='stage') stageTick(dt);
-  if(G.min<SPAWN_END) trySpawn();
+  if(G.kind==='stage' || G.t<G.cfg.duration-LAST_CALL) trySpawn();
   for(const key of KEYS){
     const arr=G.stn[key]; if(!arr.length) continue;
     const r=rate(key,arr.length);
