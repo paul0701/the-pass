@@ -208,6 +208,7 @@ const SPAWN_END = 205;     // game minutes after which no new tickets print, in 
 // Real seconds between the last new ticket and 22:00. Fixed, so a shorter service (the daily) gives the last
 // tables the same time to cook as the full one does, instead of cutting them off at close.
 const LAST_CALL = DURATION*(1-SPAWN_END/240);
+const SLOW_SQUARE = 1.4;   // a ticket this many times over its par time shows amber on the share card
 const GRACE = 28;          // split table grace window, real seconds
 // 22:00 shuts the doors, not the kitchen: tables already on the rail are still cooked and sent after it,
 // and the service ends once the rail is clear. Tables left far too long still walk out as normal.
@@ -646,9 +647,10 @@ function closeCourse(t){
   const wait=G.t-t.cStart, over=Math.max(0,wait-t.parC);
   t.tsList.push(clamp(100-over*2*(t.allergy?1.4:1),0,100));
   t.waitTot+=wait; if(wait>t.parC) t.lateAny=true;
+  if(wait>t.parC*SLOW_SQUARE) t.slowAny=true;
   if(t.splitAt!=null){
     const gap=G.t-t.splitAt; t.anySplit=true; t.gap=gap;
-    if(gap>GRACE){ t.pen+=Math.min(45,(gap-GRACE)*1.5); G.awkward++; } else G.clean++;
+    if(gap>GRACE){ t.pen+=Math.min(45,(gap-GRACE)*1.5); G.awkward++; t.awkwardAny=true; } else G.clean++;
     t.splitAt=null;
   }
 }
@@ -659,7 +661,9 @@ function finishTicket(t){
   const score=Math.round(clamp(.5*fr+.5*ts-pen,0,100));
   t.score=score;
   G.served++; G.covers+=t.covers; G.waits.push(t.waitTot);
-  G.grid += t.refires>0 ? 'r' : t.anySplit ? 'a' : 'g';
+  // The share squares say how the table went. A clean split is good kitchen craft (get the table moving, give
+  // veg the minute it needs), so it stays green. Amber is a struggle: an awkward split, or a ticket well over time.
+  G.grid += t.refires>0 ? 'r' : (t.awkwardAny || t.slowAny) ? 'a' : 'g';
   settle(t,score,false);
   G.spiked++; $('#spikeN').textContent=G.spiked; A.spike();
   retire(t);
