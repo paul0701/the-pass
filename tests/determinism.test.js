@@ -71,11 +71,10 @@ test("same seed and same bot give an identical service", { skip }, async () => {
   assert.deepEqual(b, a);
 });
 
-test("two-course tables and the larder helping out stay deterministic", { skip }, async () => {
+test("the larder helping out stays deterministic", { skip }, async () => {
   const a = await run({ seed: "courses-1", bot: "careful", noise: 11, help: true });
   const b = await run({ seed: "courses-1", bot: "careful", noise: 12, help: true });
   assert.deepEqual(b, a);
-  assert.ok(a.multi > 0, "some two-course tables were served");
   assert.ok(a.helped > 0, "larder helped at least once");
 });
 

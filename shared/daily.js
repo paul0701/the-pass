@@ -3,7 +3,7 @@
 // tests/daily.test.js checks the two never drift apart.
 
 // Day #1 of the Daily Service. Change this to the real launch date before going live.
-export const LAUNCH = "2026-11-25";
+export const LAUNCH = "2026-11-29";
 
 // Difficulty follows the day of the week, using the existing modes as the dial:
 //   int  = spawn interval multiplier (lower is busier), same meaning as MODES[].int

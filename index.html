@@ -249,7 +249,7 @@ const MODES = [
 ];
 
 /* The Daily Service calendar. Keep in step with shared/daily.js (tests/daily.test.js checks it). */
-const LAUNCH = '2026-11-25';
+const LAUNCH = '2026-11-29';
 const DAILY_DURATION = 240;
 const DAYS = [
   {short:'Sun', name:'Sunday',    title:'Sunday Roast',  int:.95,  rush:0,   pan:1,    menu:'roast'},
@@ -262,6 +262,8 @@ const DAYS = [
 ];
 const todayUtc = () => new Date().toISOString().slice(0,10);
 const dayIndex = d => new Date(d+'T00:00:00Z').getUTCDay();
+// Before launch day the daily runs as a preview, so it never shows #0 or a negative number.
+const dnum = n => n>=1 ? '#'+n : 'Preview';
 const dailyNumber = d => Math.round((Date.parse(d+'T00:00:00Z')-Date.parse(LAUNCH+'T00:00:00Z'))/864e5)+1;
 function dailyInfo(date){ const x=DAYS[dayIndex(date)]; return {date, number:dailyNumber(date), dow:dayIndex(date), short:x.short, name:x.name, title:x.title}; }
 
@@ -438,14 +440,15 @@ function newGame(mode, opts){
   let cfg;
   if(kind==='daily'){
     const d=DAYS[opts.daily.dow];
-    cfg={int:d.int, rush:d.rush, pan:d.pan, menu:d.menu, duration:DAILY_DURATION, label:d.short+' #'+opts.daily.number};
+    cfg={int:d.int, rush:d.rush, pan:d.pan, menu:d.menu, duration:DAILY_DURATION, label:d.short+' '+dnum(opts.daily.number)};
   } else if(kind==='stage'){
     const sd=STAGES[opts.stage];
     cfg=Object.assign({int:1, rush:0, pan:1, menu:'main', duration:9999, label:'Stage '+(opts.stage+1), parMul:2, noEarly:true, decayMul:{}}, sd.cfg||{});
   } else {
     const m=MODES[mode];
-    // Practice gets the new two-course tables and the larder helping out first, before the daily does.
-    cfg={int:m.int, rush:m.rush, pan:m.pan, menu:'main', duration:DURATION, label:m.name, courses:true, helps:2};
+    // Practice gets the larder helping out first, before the daily does.
+    // Two-course tables are built (courses:true turns them on) but parked for now.
+    cfg={int:m.int, rush:m.rush, pan:m.pan, menu:'main', duration:DURATION, label:m.name, courses:false, helps:2};
   }
   cfg.decayMul = cfg.decayMul || {};
   const seed = opts.seed || (kind==='daily' ? 'daily|'+opts.daily.date : kind==='stage' ? 'stage|'+opts.stage : 'practice|'+Date.now()+'|'+Math.random());
@@ -1007,18 +1010,18 @@ function currentStreak(){ return NET.token ? NET.streak : localStreak(todayUtc()
 function startScreen(){
   const date=todayUtc(), info=dailyInfo(date), st=todayStatus();
   const fresh = !save.played && !save.stage;
-  let h='<div class="card"><h1>THE PASS</h1><div class="sub">Head chef. Tonight\'s service. Full book.</div>';
+  let h='<div class="card"><h1>THE PASS</h1><div class="sub">Head chef. Tonight\'s service. Full book. <span class="tag" style="vertical-align:1px">BETA</span></div>';
   if(st&&st.finished){
-    h+='<button class="daily done" data-act="report"><b>DAILY #'+info.number+' · '+info.short.toUpperCase()+' · '+st.pct+'%</b><small><span class="stars">'+stars(st.pct)+'</span> Done for today. Tap to share. Next service at midnight UTC.</small></button>';
+    h+='<button class="daily done" data-act="report"><b>DAILY '+dnum(info.number).toUpperCase()+' · '+info.short.toUpperCase()+' · '+st.pct+'%</b><small><span class="stars">'+stars(st.pct)+'</span> Done for today. Tap to share. Next service at midnight UTC.</small></button>';
   } else if(st&&st.started){
-    h+='<button class="daily done" data-act="stats"><b>DAILY #'+info.number+' · '+info.short.toUpperCase()+'</b><small>You started today\'s service and left the pass. It still counts. Back tomorrow, chef.</small></button>';
+    h+='<button class="daily done" data-act="stats"><b>DAILY '+dnum(info.number).toUpperCase()+' · '+info.short.toUpperCase()+'</b><small>You started today\'s service and left the pass. It still counts. Back tomorrow, chef.</small></button>';
   } else {
-    h+='<button class="daily" data-act="dailybrief"><b>DAILY SERVICE #'+info.number+'</b><small>'+info.name+': '+info.title+'. Same tickets for everyone. One go.</small></button>';
+    h+='<button class="daily" data-act="dailybrief"><b>DAILY SERVICE '+dnum(info.number).toUpperCase()+'</b><small>'+info.name+': '+info.title+'. Same tickets for everyone. One go.</small></button>';
   }
   const sk=currentStreak();
   h+='<div class="stats">'+(sk?'Daily streak '+sk+' day'+(sk>1?'s':'')+' · ':'')+(NET.token?'Signed in as '+esc(NET.name):'Playing as a guest')+'</div>';
   h+='<div class="sect">LEARN</div><div class="modes"><button class="mode'+(fresh?' next':'')+'" data-act="stages"><b>The Stage'+(save.stage?' ('+Math.min(save.stage,STAGES.length)+'/'+STAGES.length+')':'')+'</b><small>'+(fresh?'New here? Start your stage. The head chef talks you through it.':'Short guided services with the head chef. One skill at a time.')+'</small></button></div>';
-  h+='<div class="sect">PRACTICE</div><div class="stats" style="margin:0 0 6px;text-align:left">New in Practice: two-course tables, and a free larder chef can jump on a buried section (tap it).</div><div class="modes">';
+  h+='<div class="sect">PRACTICE</div><div class="stats" style="margin:0 0 6px;text-align:left">New in Practice: when the larder chef is free, tap a buried section and they\'ll jump on it.</div><div class="modes">';
   MODES.forEach((m,i)=>{
     const locked=i>save.unlocked;
     h+='<button class="mode'+(i===chosenMode&&!locked?' on':'')+(locked?' locked':'')+'" data-act="mode" data-i="'+i+'"><b>'+m.name+(save.best[i]?' ('+save.best[i]+'%)':'')+'</b><small>'+(locked?'Locked: '+m.need:m.sub)+'</small></button>';
@@ -1030,7 +1033,7 @@ function startScreen(){
 }
 function dailyBrief(){
   const info=dailyInfo(todayUtc());
-  let h='<div class="card"><h1>DAILY</h1><div class="sub">#'+info.number+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
+  let h='<div class="card"><h1>DAILY</h1><div class="sub">'+dnum(info.number)+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
   h+='<div class="verdict">'+info.title+'.</div>';
   h+='<div class="prose"><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
   h+='<p>Then share your card and see how everyone else got on.</p>';
@@ -1051,7 +1054,7 @@ function pauseScreen(){
   showOverlay('<div class="card"><h1>PAUSED</h1><div class="sub">Service is on hold.</div><button class="go" data-act="resume">RESUME</button><button class="go alt" data-act="quit">LEAVE THE PASS</button>'+(G&&G.kind==='daily'?'<div class="stats">Leaving ends today\'s daily. It still counts as your go.</div>':'')+'</div>', G&&G.kind==='daily');
 }
 function shareText(r){
-  const head='The Pass #'+r.number+' ('+r.short+') '+r.rating+'% '+stars(r.rating);
+  const head='The Pass '+dnum(r.number)+' ('+r.short+') '+r.rating+'% '+stars(r.rating);
   return head+'\n'+squares(r.grid)+(r.verdict?'\nChef: "'+r.verdict+'"':'')+'\n'+niceDate(r.date)+'\n'+siteUrl();
 }
 const siteUrl = () => location.origin+location.pathname.replace(/index\.html$/,'');
@@ -1073,7 +1076,7 @@ function receiptCanvas(r){
   const text=(t,font,col,yy,al)=>{ x.font=font; x.fillStyle=col; x.textAlign=al||'center'; x.fillText(t,al==='left'?L+50:cx,yy); };
   const rule=yy=>{ x.strokeStyle='#1d1d1d'; x.lineWidth=4; x.setLineDash([14,10]); x.beginPath(); x.moveTo(L+50,yy); x.lineTo(R-50,yy); x.stroke(); x.setLineDash([]); };
   x.save(); x.font='800 76px '+mono; x.fillStyle='#1d1d1d'; x.textAlign='center'; if('letterSpacing' in x) x.letterSpacing='22px'; x.fillText('THE PASS',cx+11,y); x.restore();
-  y+=58; text('Daily #'+r.number+' · '+r.short+' · '+niceDate(r.date),'400 32px '+mono,'#555',y);
+  y+=58; text('Daily '+dnum(r.number)+' · '+r.short+' · '+niceDate(r.date),'400 32px '+mono,'#555',y);
   y+=40; rule(y);
   y+=170; text(r.rating+'%','800 170px '+sans,'#1d1d1d',y);
   y+=84; text(stars(r.rating),'400 64px '+sans,'#b9801a',y);
@@ -1118,7 +1121,7 @@ function dailyReportFromSave(){
   const r = l&&l.finished ? l : st&&st.finished ? Object.assign({rating:st.pct, grid:st.grid}, dailyInfo(todayUtc())) : null;
   if(!r){ startScreen(); return; }
   lastDaily=r;
-  let h='<div class="card"><h1>THE PASS</h1><div class="sub">Daily #'+r.number+' · '+r.short+' · '+niceDate(r.date)+'</div><div class="rule"></div>';
+  let h='<div class="card"><h1>THE PASS</h1><div class="sub">Daily '+dnum(r.number)+' · '+r.short+' · '+niceDate(r.date)+'</div><div class="rule"></div>';
   h+='<div class="big"><div class="pct">'+r.rating+'%</div><div class="stars">'+stars(r.rating)+'</div></div><div class="sq">'+squares(r.grid).replace(/\n/g,'<br>')+'</div>';
   if(r.verdict) h+='<div class="chef"><small>CHEF\'S VERDICT</small>"'+esc(r.verdict)+'"</div>';
   h+='<button class="go" data-act="share">SHARE</button><button class="go alt" data-act="image">SAVE AS IMAGE</button><button class="go alt" data-act="stats">STATS</button><button class="go alt" data-act="home">BACK</button></div>';
@@ -1200,7 +1203,7 @@ function endGame(reason){
   if(headless) return;
   if(G.kind==='stage') return stageReport(res, passed);
   const row=(a,b)=>'<div class="rrow"><span>'+a+'</span><i></i><b>'+b+'</b></div>';
-  const sub = G.kind==='daily' ? 'Daily #'+G.info.number+' · '+G.info.name+' · Pass report' : MODES[G.mode].name+' · Pass report';
+  const sub = G.kind==='daily' ? 'Daily '+dnum(G.info.number)+' · '+G.info.name+' · Pass report' : MODES[G.mode].name+' · Pass report';
   let h='<div class="card"><h1>THE PASS</h1><div class="sub">'+sub+'</div><div class="rule"></div>';
   h+='<div class="big"><div class="pct">'+rating+'%</div><div class="stars">'+stars(rating)+'</div></div>';
   if(G.kind==='daily') h+='<div class="sq">'+squares(G.grid).replace(/\n/g,'<br>')+'</div>';
