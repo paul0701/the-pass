@@ -3,7 +3,8 @@ import { prevDate } from "../../shared/daily.js";
 // Same thresholds as stars() in index.html.
 export const starCount = (r) => (r >= 92 ? 5 : r >= 82 ? 4 : r >= 70 ? 3 : r >= 55 ? 2 : r >= 35 ? 1 : 0);
 
-// Share grid: one character per table. g = clean send, a = split, r = walkout or refire.
+// Share grid: one character per table. g = went out well (a clean split counts), a = a struggle (awkward split or
+// a ticket well over its time), r = walkout or refire.
 export const GRID_RE = /^[gar]{0,80}$/;
 
 // The streak as it stands today: it only survives if the last service was today or yesterday.
