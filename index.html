@@ -18,7 +18,7 @@
 html,body{margin:0;height:100%;background:#15181b;color:#e8e6df;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;overscroll-behavior:none}
 body{display:flex;justify-content:center;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 button{font-family:inherit;color:inherit}
-#app{position:relative;width:100%;max-width:520px;height:100vh;height:100dvh;display:flex;flex-direction:column;background:linear-gradient(180deg,#2b3036 0%,#434a52 50%,#2b3036 100%);overflow:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+#app{position:relative;width:100%;max-width:520px;height:100vh;height:100dvh;display:flex;flex-direction:column;background:linear-gradient(180deg,#2b3036 0%,#434a52 50%,#2b3036 100%);overflow:hidden;padding-top:env(safe-area-inset-top);padding-bottom:calc(env(safe-area-inset-bottom) + var(--badge,0px))}
 #top{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#1e2226;border-bottom:1px solid #000;flex:none}
 #clock{font:700 22px ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:#ffcf7a;letter-spacing:1px;min-width:62px}
 #wave{flex:1;font-size:11px;color:#9aa3ab;text-transform:uppercase;letter-spacing:.08em;line-height:1.25}
@@ -101,7 +101,7 @@ button{font-family:inherit;color:inherit}
 #toast.on{animation:toast 2.2s}
 #toast.bad{background:#7a2320ee}
 @keyframes toast{0%{opacity:0}8%{opacity:1}80%{opacity:1}100%{opacity:0}}
-.ov{position:absolute;inset:0;background:#0a0c0ecc;display:none;align-items:center;justify-content:center;padding:14px;z-index:10;overflow-y:auto}
+.ov{position:absolute;inset:0;background:#0a0c0ecc;display:none;align-items:center;justify-content:center;padding:14px 14px calc(14px + var(--badge,0px));z-index:10;overflow-y:auto}
 .card{background:#f6f4ee;color:#1d1d1d;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;width:100%;max-width:380px;padding:18px 18px 22px;border-radius:3px;box-shadow:0 8px 28px #000a;max-height:100%;overflow-y:auto}
 .card h1{margin:0;text-align:center;letter-spacing:.3em;font-size:26px}
 .card .sub{text-align:center;font-size:12px;margin:2px 0 12px;color:#555}
@@ -1154,6 +1154,19 @@ async function startDaily(btn){
   markLocalPlayed(info.date); writeSave();
   newGame(-1,{kind:'daily', daily:info});
 }
+
+/* Netlify's free plan pins a "Powered by Netlify" badge over the bottom right corner. When it is there and
+   overlaps the game, keep exactly that much clear under the window so no plate or button sits beneath it. */
+function fitBadge(){
+  const f=document.getElementById('nl-badge-frame');
+  let h=0;
+  if(f){ const r=f.getBoundingClientRect(), a=$('#app').getBoundingClientRect();
+    if(r.height && r.left<a.right && r.right>a.left) h=Math.ceil(innerHeight-r.top); }
+  document.documentElement.style.setProperty('--badge', Math.max(0,Math.min(120,h))+'px');
+}
+new MutationObserver(fitBadge).observe(document.body,{childList:true});
+addEventListener('resize',fitBadge);
+[500,1500,4000,8000].forEach(ms=>setTimeout(fitBadge,ms));
 
 /* ---------- boot ---------- */
 loadSave(); A.muted=!!save.muted; setMuteIcon(); buildBrigade();
