@@ -22,7 +22,7 @@ after(async () => { if (browser) await browser.close(); });
 
 // Runs one whole service in the page. bot: "careful" | "masher". noise: seed for a fake Math.random,
 // so two runs with different cosmetic randomness must still match exactly.
-const run = (opts) => page.evaluate(({ seed, bot, mode, daily, noise }) => {
+const run = (opts) => page.evaluate(({ seed, bot, mode, daily, noise, help }) => {
   const P = window.__pass;
   const realRandom = Math.random;
   const nr = P.seeded("noise|" + noise);
@@ -37,9 +37,10 @@ const run = (opts) => page.evaluate(({ seed, bot, mode, daily, noise }) => {
       if (G.t < next) continue;
       next = G.t + 0.25;
       const open = G.tickets.filter((t) => !t.done);
+      if (help && G.helps && !G.help && !G.stn.larder.length) for (const k of ["grill", "pan", "garnish"]) if (G.stn[k].length > 6) { P.help(k); break; }
       for (const t of open) {
         for (const d of t.dishes) if (d.dead) P.bin(d);
-        const live = t.dishes.filter((d) => d.state === "unfired" || d.state === "cooking");
+        const live = t.dishes.filter((d) => (d.state === "unfired" && !d.hold) || d.state === "cooking");
         if (bot === "masher") {
           live.forEach((d) => d.state === "unfired" && P.fire(d));
           if (t.dishes.some((d) => d.state === "plated" && !d.dead)) P.sendTicket(t);
@@ -48,13 +49,14 @@ const run = (opts) => page.evaluate(({ seed, bot, mode, daily, noise }) => {
         const land = Math.max(0, ...live.map((d) => (d.state === "cooking" ? d.rem : d.base)));
         for (const d of live) if (d.state === "unfired" && d.base >= land - 1) P.fire(d);
         const plated = t.dishes.filter((d) => d.state === "plated" && !d.dead);
-        const waiting = t.dishes.filter((d) => d.state === "unfired" || d.state === "cooking" || d.dead).length;
+        const waiting = t.dishes.filter((d) => (d.state === "unfired" && !d.hold) || d.state === "cooking" || d.dead).length;
         if (plated.length && (!waiting || plated.some((d) => d.q < 45))) P.sendTicket(t);
       }
     }
     const r = G.result || {};
     return { rating: r.rating, grid: r.grid, covers: r.covers, dead: r.dead, refires: r.refires, clean: r.clean,
-      awkward: r.awkward, avgTicket: r.avgTicket, t: G.t, log: G.log, reason: r.reason };
+      awkward: r.awkward, avgTicket: r.avgTicket, t: G.t, log: G.log, reason: r.reason,
+      multi: G.tickets.filter((t) => t.multi).length, helped: G.helpUsed };
   } finally {
     Math.random = realRandom;
   }
@@ -67,6 +69,14 @@ test("same seed and same bot give an identical service", { skip }, async () => {
   const b = await run({ seed: "test-1", bot: "careful", noise: 2 });
   assert.ok(a.log.length > 20, "a real service ran");
   assert.deepEqual(b, a);
+});
+
+test("two-course tables and the larder helping out stay deterministic", { skip }, async () => {
+  const a = await run({ seed: "courses-1", bot: "careful", noise: 11, help: true });
+  const b = await run({ seed: "courses-1", bot: "careful", noise: 12, help: true });
+  assert.deepEqual(b, a);
+  assert.ok(a.multi > 0, "some two-course tables were served");
+  assert.ok(a.helped > 0, "larder helped at least once");
 });
 
 test("the masher bot is deterministic too", { skip }, async () => {

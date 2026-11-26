@@ -19,7 +19,7 @@ unlocks, Stage progress and settings between devices.
 | --- | --- |
 | Daily Service | Same seeded service for everyone, keyed to the UTC date. One attempt, recorded when the service **starts**. Share card, streak of days played, and a Wordle-style stats screen (played, average, streaks, star rating chart). |
 | The Stage | Six short guided services. The head chef talks you through one skill at a time: reading a ticket, long cooks first, checking the pan, bin and refire, splitting a table, then a proper rush. Ends with a chef's verdict. Never scored on a leaderboard. |
-| Practice | The original Friday Night, Saturday Night and Christmas Eve modes, unlimited, full five and a half minutes. |
+| Practice | The original Friday Night, Saturday Night and Christmas Eve modes, unlimited, full five and a half minutes. Also where new mechanics land first: two-course tables (mains on hold until the waiter calls away) and the larder chef helping a buried section (tap it, 2 per service). |
 
 ### Weekday difficulty
 The daily uses the existing mode dials (`int`, `rush`, `pan`). Edit `shared/daily.js` **and** the inline copy in
