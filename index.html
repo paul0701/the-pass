@@ -95,6 +95,10 @@ button{font-family:inherit;color:inherit}
 .plate.sel{border-color:#ffb347;background:#4a3a20aa}
 .plate.off{opacity:.5}
 .plate.dead{filter:grayscale(1);border-color:#d9534f;animation:pulse 1s infinite}
+.plate.dying{border-color:#e6b04a;animation:lamp .7s infinite}
+@keyframes lamp{50%{border-color:#ff5a36;box-shadow:0 0 14px #ff5a36aa;background:#5a2a1caa}}
+.chef{font:600 14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;margin:8px 6px 2px;color:#1d1d1d}
+.chef small{display:block;font:700 9.5px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2em;color:#8a5a00;margin-bottom:3px}
 .plate.dead .tn{color:#ff8a85}
 #winlabel{position:absolute;right:8px;bottom:3px;font-size:9px;letter-spacing:.25em;color:#ffffff30;pointer-events:none}
 #toast{position:absolute;left:50%;bottom:130px;transform:translateX(-50%);background:#101214ee;color:#fff;padding:7px 14px;border-radius:18px;font-size:13px;pointer-events:none;opacity:0;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis;z-index:5}
@@ -495,7 +499,7 @@ function makeTicket(w,r,spec){
     d.base=Math.round(d.base*f);
   });
   const t = {id:G.tid++, table:nextTable(), covers, born:G.t, dishes:ds, rush, vip, allergy, done:false, walked:false,
-             par:(45+6*ds.length)*(rush?.78:1)*(vip?.9:1)*(G.cfg.parMul||1), splitAt:null, gap:null, refires:0, ui:{}, allergyText:allergy?(ds.find(d=>d.mods.allergy).mods.allergy):''};
+             par:(45+6*ds.length)*(rush?.78:1)*(vip?.9:1)*(G.cfg.parMul||1), wave:w.name, splitAt:null, gap:null, refires:0, ui:{}, allergyText:allergy?(ds.find(d=>d.mods.allergy).mods.allergy):''};
   ds.forEach(d=>{ d.tid=t.id; G.dmap[d.id]=d; });
   G.tickets.push(t); G.tmap[t.id]=t;
   G.log.push(ds.map(d=>d.abbr+(d.mods.allergy?'!':'')+(d.mods.xc?'+':'')).join(',')+(rush?'|R':'')+(vip?'|V':''));
@@ -585,7 +589,7 @@ function sendTicket(t){
 }
 function sendSel(){ sendTicket(selT()); }
 function settle(t,score,walked){
-  G.scores.push({s:score,w:t.vip?2:1});
+  G.scores.push({s:score,w:t.vip?2:1,wave:t.wave,table:t.table,late:walked||(G.t-t.born)>t.par});
   G.sat = clamp(G.sat + (score-62)*.2 - (walked?4:0), 0, 100);
   if(score>=75){ G.streak++; G.bestStreak=Math.max(G.bestStreak,G.streak); } else G.streak=0;
 }
@@ -854,6 +858,7 @@ function mkPlate(t,d){
   if(ref&&ref.nextSibling) winEl.insertBefore(p,ref.nextSibling); else winEl.appendChild(p);
   d.ui.plate=p; d.ui.ring=p.querySelector('.ring');
 }
+const clockAt = t => { const m=Math.floor(t*240/G.cfg.duration); return (18+Math.floor(m/60))+':'+pad(m%60); };
 function render(){
   if(!G) return;
   const m=Math.floor(G.t*240/G.cfg.duration), hh=18+Math.floor(m/60);
@@ -895,7 +900,7 @@ function render(){
       if(inWin){
         d.ui.ring.style.strokeDashoffset=(94.25*(1-d.q/100)).toFixed(1);
         d.ui.ring.style.stroke='hsl('+Math.round(d.q*1.2)+',70%,52%)';
-        d.ui.plate.className='plate'+(G.sel===t.id&&d.sel?' sel':'')+(!d.sel?' off':'')+(d.dead?' dead':'');
+        d.ui.plate.className='plate'+(G.sel===t.id&&d.sel?' sel':'')+(!d.sel?' off':'')+(d.dead?' dead':d.q<40?' dying':'');
       }
     }
   }
@@ -974,11 +979,61 @@ function pauseScreen(){
 }
 function shareText(r){
   const head='The Pass #'+r.number+' ('+r.short+') '+r.rating+'% '+stars(r.rating);
-  return head+'\n'+squares(r.grid)+'\n'+niceDate(r.date)+'\n'+location.origin+location.pathname.replace(/index\.html$/,'');
+  return head+'\n'+squares(r.grid)+(r.verdict?'\nChef: "'+r.verdict+'"':'')+'\n'+niceDate(r.date)+'\n'+siteUrl();
 }
+const siteUrl = () => location.origin+location.pathname.replace(/index\.html$/,'');
 let lastDaily=null;
+const shareable = () => lastDaily || (()=>{ const l=localDaily(todayUtc()); return l&&l.finished?l:null; })();
+
+/* The receipt as a picture (1080x1350, fits Instagram and group chats). Drawn on a canvas, no assets. */
+function receiptCanvas(r){
+  const W=1080, H=1350, c=document.createElement('canvas'); c.width=W; c.height=H;
+  const x=c.getContext('2d'), mono='ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace', sans='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const g=x.createRadialGradient(W/2,0,60,W/2,0,H); g.addColorStop(0,'#5a4526'); g.addColorStop(.55,'#2b3036'); g.addColorStop(1,'#15181b');
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+  const L=110, R=W-110, T=90, B=H-110;
+  x.fillStyle='#f6f4ee'; x.beginPath(); x.moveTo(L,T); x.lineTo(R,T); x.lineTo(R,B);
+  const teeth=Math.round((R-L)/40), step=(R-L)/teeth;
+  for(let i=0;i<teeth;i++){ x.lineTo(R-step*(i+.5), B+22); x.lineTo(R-step*(i+1), B); }
+  x.closePath(); x.shadowColor='#0009'; x.shadowBlur=40; x.shadowOffsetY=14; x.fill(); x.shadowColor='transparent';
+  const cx=W/2; let y=T+110;
+  const text=(t,font,col,yy,al)=>{ x.font=font; x.fillStyle=col; x.textAlign=al||'center'; x.fillText(t,al==='left'?L+50:cx,yy); };
+  const rule=yy=>{ x.strokeStyle='#1d1d1d'; x.lineWidth=4; x.setLineDash([14,10]); x.beginPath(); x.moveTo(L+50,yy); x.lineTo(R-50,yy); x.stroke(); x.setLineDash([]); };
+  x.save(); x.font='800 76px '+mono; x.fillStyle='#1d1d1d'; x.textAlign='center'; if('letterSpacing' in x) x.letterSpacing='22px'; x.fillText('THE PASS',cx+11,y); x.restore();
+  y+=58; text('Daily #'+r.number+' · '+r.short+' · '+niceDate(r.date),'400 32px '+mono,'#555',y);
+  y+=40; rule(y);
+  y+=170; text(r.rating+'%','800 170px '+sans,'#1d1d1d',y);
+  y+=84; text(stars(r.rating),'400 64px '+sans,'#b9801a',y);
+  const per=8, sz=62, gap=12, cols=Math.min(per,r.grid.length||1), rows=Math.ceil((r.grid.length||1)/per);
+  const gx=cx-(cols*sz+(cols-1)*gap)/2; y+=50;
+  const colr={g:'#58b368',a:'#e6b04a',r:'#d9534f'};
+  for(let i=0;i<r.grid.length;i++){ const cxx=gx+(i%per)*(sz+gap), cy=y+Math.floor(i/per)*(sz+gap);
+    x.fillStyle=colr[r.grid[i]]||'#999'; x.beginPath(); if(x.roundRect) x.roundRect(cxx,cy,sz,sz,10); else x.rect(cxx,cy,sz,sz); x.fill(); }
+  y+=rows*(sz+gap)+40; rule(y);
+  if(r.verdict){
+    y+=58; text("CHEF'S VERDICT",'700 26px '+mono,'#8a5a00',y);
+    x.font='600 38px '+sans; const words=('"'+r.verdict+'"').split(' '); let line='', lines=[];
+    words.forEach(w=>{ const t=line?line+' '+w:w; if(x.measureText(t).width>R-L-120){ lines.push(line); line=w; } else line=t; }); lines.push(line);
+    lines.slice(0,5).forEach(l=>{ y+=52; text(l,'600 38px '+sans,'#1d1d1d',y); });
+  }
+  text(siteUrl().replace(/^https?:\/\//,'').replace(/\/$/,''),'400 28px '+mono,'#777',B-46);
+  return c;
+}
+async function shareImage(){
+  const r=shareable(); if(!r){ toast('Nothing to share yet.',true); return; }
+  const c=receiptCanvas(r);
+  const blob=await new Promise(res=>c.toBlob(res,'image/png'));
+  if(!blob){ toast('Couldn\'t make the picture.',true); return; }
+  const name='the-pass-'+r.number+'.png';
+  try{
+    const file=new File([blob],name,{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file], text:shareText(r)}); return; }
+  }catch(e){ if(e&&e.name==='AbortError') return; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },2000); toast('Saved the receipt.');
+}
 async function doShare(){
-  const r=lastDaily || (()=>{ const l=localDaily(todayUtc()); return l&&l.finished?l:null; })();
+  const r=shareable();
   if(!r){ toast('Nothing to share yet.',true); return; }
   const text=shareText(r);
   if(navigator.share){ try{ await navigator.share({text}); return; }catch(e){ if(e&&e.name==='AbortError') return; } }
@@ -992,8 +1047,51 @@ function dailyReportFromSave(){
   lastDaily=r;
   let h='<div class="card"><h1>THE PASS</h1><div class="sub">Daily #'+r.number+' · '+r.short+' · '+niceDate(r.date)+'</div><div class="rule"></div>';
   h+='<div class="big"><div class="pct">'+r.rating+'%</div><div class="stars">'+stars(r.rating)+'</div></div><div class="sq">'+squares(r.grid).replace(/\n/g,'<br>')+'</div>';
-  h+='<button class="go" data-act="share">SHARE</button><button class="go alt" data-act="stats">STATS</button><button class="go alt" data-act="home">BACK</button></div>';
+  if(r.verdict) h+='<div class="chef"><small>CHEF\'S VERDICT</small>"'+esc(r.verdict)+'"</div>';
+  h+='<button class="go" data-act="share">SHARE</button><button class="go alt" data-act="image">SAVE AS IMAGE</button><button class="go alt" data-act="stats">STATS</button><button class="go alt" data-act="home">BACK</button></div>';
   showOverlay(h);
+}
+
+/* ---------- the chef's verdict ----------
+   One blunt line on the report: a headline for the star rating, then a jab at whatever cost the most points.
+   An original roasting head chef. Swearing is implied, never spelled out. Picked from the seed and score, so the
+   same result always gets the same line (it goes on the share card). */
+const VERDICT = {
+  head:[
+    ['Turn the lights off. Everyone go home.','That wasn\'t a service. That was a hostage situation.','I\'ve seen better run kitchens on a ferry.'],
+    ['What... was... that?','My nan runs a tighter pass. She\'s ninety-one.','Who let you near the pass? Seriously, who?'],
+    ['You got through it. Just. Barely. Somehow.','Average. And I don\'t do average.','Not a disaster. That\'s the nicest thing I\'ll say.'],
+    ['Decent. Don\'t look so pleased with yourself.','Good. Not great. Good.','You\'re getting there. Slowly. Like your tickets.'],
+    ['Nearly. Nearly doesn\'t get five stars.','Tidy. Very nearly properly tidy.','Strong night. I hate that I have to say it.'],
+    ['Clean. Annoyingly clean.','Right. THAT is how you run a pass.','I\'ve got nothing. Don\'t get used to it.']
+  ],
+  walk1:['Table {t} walked out. I\'d have walked with them.','Table {t} walked. They\'re in the chippy next door, and they\'re happier.','One walkout. Table {t}. I\'ll be ringing them to apologise. You won\'t.'],
+  walk:['{n} tables walked. They\'re eating chips in the car park and they\'re happier.','{n} walkouts. The dining room is emptier than your excuses.','{n} tables walked out. I\'ve had busier funerals.'],
+  refire:['{n} refires. The bin had a better night than the customers.','Binned {n} plates. We\'re a kitchen, not a landfill.','{n} refires. Every one of them on my food bill.'],
+  awkward:['{n} awkward splits. Half the table finished before the other half got cutlery.','Split tables left hanging. Somebody\'s date night is ruined. Cheers.','{n} splits that never landed. Pick a lane, chef.'],
+  late:['Tickets crawled all night. Table {t} aged a year waiting.','The food was fine. Eventually. Eventually isn\'t a cook time.','I could have grown the veg in the time Table {t} waited.'],
+  fresh:['Plates sat under that lamp so long they got a tan.','Lukewarm. Everything lukewarm. Get the table up together.','That window is a sunbed, not a pass. Get it out hot.'],
+  wave:['Cruising until {w}, then you folded like a cheap napkin.','{w} chewed you up and spat you out.','Fine until {w}. Then it was carnage.'],
+  clean:['Every plate hot, every table out. Go home before I find something.','No dead plates, no walkouts. Who are you and what have you done with my kitchen?','Same again tomorrow. And the day after. That\'s the job.']
+};
+function verdictFor(rating){
+  const r=seeded(G.seed+'|verdict|'+rating);
+  const n=starN(rating), all=G.scores;
+  const avg=a=>a.length?a.reduce((x,y)=>x+y.s,0)/a.length:0;
+  const worst=all.slice().sort((a,b)=>a.s-b.s||b.late-a.late)[0];
+  const fresh=G.sentQs.length?G.sentQs.reduce((a,b)=>a+b,0)/G.sentQs.length:100;
+  const late=all.length?all.filter(x=>x.late).length/all.length:0;
+  let wv=null, wGap=0;
+  WAVES.forEach(w=>{ const a=all.filter(x=>x.wave===w.name); if(a.length>=2){ const gap=avg(all)-avg(a); if(gap>wGap){ wGap=gap; wv=w.name; } } });
+  const issues=[
+    ['walk', G.walked*25], ['refire', Math.min(G.refires,5)*7], ['awkward', Math.min(G.awkward,5)*6],
+    ['late', late*40], ['fresh', (88-fresh)*1.5], ['wave', wv?(wGap-6)*1.2:0]
+  ].sort((a,b)=>b[1]-a[1]);
+  // A five star night only gets picked on for something serious.
+  const key = issues[0][1]>(n>=5?15:3) ? issues[0][0] : 'clean';
+  const list = key==='walk'&&G.walked===1 ? VERDICT.walk1 : VERDICT[key];
+  const fill = x => x.replace('{n}',key==='walk'?G.walked:key==='refire'?G.refires:G.awkward).replace('{t}',worst?worst.table:1).replace('{w}',wv||'The Slam');
+  return pick(r,VERDICT.head[n])+' '+fill(pick(r,list));
 }
 
 function endGame(reason){
@@ -1013,11 +1111,12 @@ function endGame(reason){
   }
   const passed = G.kind==='stage' && rating>=STAGE_PASS;
   if(passed) save.stage=Math.max(save.stage,G.stageIx+1);
-  const res={mode:G.mode,kind:G.kind,rating,covers:G.covers,avgTicket:avgT,freshness:fresh,clean:G.clean,awkward:G.awkward,dead:G.dead,refires:G.refires,streak:G.bestStreak,reason,
+  const verdict = G.kind==='stage' ? '' : verdictFor(rating);
+  const res={verdict,mode:G.mode,kind:G.kind,rating,covers:G.covers,avgTicket:avgT,freshness:fresh,clean:G.clean,awkward:G.awkward,dead:G.dead,refires:G.refires,streak:G.bestStreak,reason,
              tables:G.served, walked:G.walked, grid:G.grid, seed:G.seed};
   if(G.kind==='daily'){
     Object.assign(res, {date:G.info.date, number:G.info.number, short:G.info.short});
-    save.daily = {date:G.info.date, number:G.info.number, short:G.info.short, started:true, finished:true, rating, pct:rating, stars:stars(rating), grid:G.grid};
+    save.daily = {date:G.info.date, number:G.info.number, short:G.info.short, started:true, finished:true, rating, pct:rating, stars:stars(rating), grid:G.grid, verdict};
     lastDaily = save.daily;
     markLocalFinished(rating);
   }
@@ -1032,7 +1131,8 @@ function endGame(reason){
   let h='<div class="card"><h1>THE PASS</h1><div class="sub">'+sub+'</div><div class="rule"></div>';
   h+='<div class="big"><div class="pct">'+rating+'%</div><div class="stars">'+stars(rating)+'</div></div>';
   if(G.kind==='daily') h+='<div class="sq">'+squares(G.grid).replace(/\n/g,'<br>')+'</div>';
-  h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+$('#clock').textContent+'.':reason==='left'?'You left the pass at '+$('#clock').textContent+'.':'Service complete. Last table away at '+$('#clock').textContent+'.')+'</div><div class="rule"></div>';
+  h+='<div class="chef"><small>CHEF\'S VERDICT</small>"'+esc(verdict)+'"</div>';
+  h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+clockAt(G.t)+'.':reason==='left'?'You left the pass at '+clockAt(G.t)+'.':'Service complete. Last table away at '+clockAt(G.t)+'.')+'</div><div class="rule"></div>';
   h+=row('Covers served',G.covers)+row('Tables away',G.served+' / '+(G.served+G.walked))+row('Average ticket time',fmt(avgT))+row('Food freshness',fresh+'%');
   h+=row('Split calls',G.clean+' clean, '+G.awkward+' awkward')+row('Dead plates / refires',G.dead+' / '+G.refires)+row('Best streak',G.bestStreak+' tables');
   h+='<div class="rule"></div>';
@@ -1041,7 +1141,7 @@ function endGame(reason){
   if(G.kind==='daily'){
     const sk=localStreak(G.info.date);
     h+='<div class="note dim" id="dailyNote">'+(NET.token?'Saving...':'Daily streak: '+sk+' day'+(sk===1?'':'s')+'.')+'</div>';
-    h+='<button class="go" data-act="share" style="margin-top:12px">SHARE</button><button class="go alt" data-act="stats">STATS</button>';
+    h+='<button class="go" data-act="share" style="margin-top:12px">SHARE</button><button class="go alt" data-act="image">SAVE AS IMAGE</button><button class="go alt" data-act="stats">STATS</button>';
     h+='<button class="go alt" data-act="again">BACK TO THE PASS</button>';
   } else h+='<button class="go" data-act="again" style="margin-top:12px">BACK TO THE PASS</button>';
   if(CHARITY.enabled) h+='<div class="stats"><a href="#" data-act="charity" style="color:#555">'+esc(CHARITY.reportLine)+'</a></div>';
@@ -1127,6 +1227,7 @@ ovEl.addEventListener('click',e=>{
   else if(a==='dailygo'){ startDaily(b); }
   else if(a==='report'){ dailyReportFromSave(); }
   else if(a==='share'){ doShare(); }
+  else if(a==='image'){ shareImage(); }
   else if(a==='stages'){ stageMenu(); }
   else if(a==='stage'){ newGame(0,{kind:'stage', stage:+b.dataset.i}); }
   else if(a==='charity'){ charityPage(); }
@@ -1267,7 +1368,7 @@ Online.refresh();
 
 /* handles for testing */
 window.__pass = {newGame,update,render,state:()=>G,fire:fireDish,check:checkDish,select:selectTicket,send:sendSel,sendTicket,bin:binDish,endGame,save:()=>save,A,
-  headless(on){ headless=!!on; }, DAYS, LAUNCH, DAILY_DURATION, dailyInfo, STAGES, shareText, seeded};
+  headless(on){ headless=!!on; }, receiptCanvas, DAYS, LAUNCH, DAILY_DURATION, dailyInfo, STAGES, shareText, seeded};
 
 if('serviceWorker' in navigator && /^https?:/.test(location.protocol)){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
