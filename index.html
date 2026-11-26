@@ -84,6 +84,14 @@ button{font-family:inherit;color:inherit}
 .chip.dead{background:#fde2e0;border-color:#d9534f}
 .chip.dead .cs{color:#c0392b}
 .chip.s-sent{opacity:.45;text-decoration:line-through}
+.chip.hold{background:#e6e3da;color:#8a8780;border-style:dashed}
+.chip.hold .cs{color:#8a8780}
+.crs{grid-column:1/-1;font:700 9.5px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.14em;color:#777;margin:1px 0 -2px;display:flex;gap:6px;align-items:center}
+.crs::after{content:'';flex:1;border-top:1px dashed #bbb}
+.crs.away{color:#237a3a}
+.stn{cursor:pointer}
+.stn.helped{border-color:#ffcf7a;box-shadow:0 0 10px #ffcf7a88}
+.stn.helping{opacity:.65}
 .chip.alg{box-shadow:inset 0 0 0 2px #c0392b}
 #window{margin:4px 8px 0;height:112px;flex:none;background:radial-gradient(ellipse at 50% -10%,#ffb34766,#3a3f45 72%),#3a3f45;border:2px solid #14171a;border-radius:10px;padding:6px;display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;overflow-y:auto;position:relative;box-shadow:inset 0 0 22px #ff9a2e22}
 .plate{width:58px;height:58px;background:#1e2226aa;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid transparent;position:relative;cursor:pointer}
@@ -412,7 +420,13 @@ const coachEl=$('#coach'), coachTx=$('#coachTx');
 const stnUi = {};
 
 function slowOf(key){ return ST[key].slow * (key==='pan' ? G.cfg.pan : 1); }
-function rate(key,n){ const f=ST[key].free; return n<=f ? 1 : 1/(1+slowOf(key)*(n-f)); }
+// Larder helping out: an extra pair of hands means four more dishes before the section slows, and 30% quicker.
+const HELP_SECS = 15, HELP_HANDS = 4, HELP_SPEED = 1.3;
+function rate(key,n){
+  const h = G.help && G.help.key===key;
+  const f = ST[key].free + (h?HELP_HANDS:0), base = n<=f ? 1 : 1/(1+slowOf(key)*(n-f));
+  return h ? base*HELP_SPEED : base;
+}
 function waveAt(m){ return m<45?WAVES[0] : m<90?WAVES[1] : m<180?WAVES[2] : WAVES[3]; }
 function selT(){ if(!G||!G.sel) return null; const t=G.tmap[G.sel]; return (t&&!t.done)?t:null; }
 function openTickets(){ return G.tickets.filter(t=>!t.done); }
@@ -430,7 +444,8 @@ function newGame(mode, opts){
     cfg=Object.assign({int:1, rush:0, pan:1, menu:'main', duration:9999, label:'Stage '+(opts.stage+1), parMul:2, noEarly:true, decayMul:{}}, sd.cfg||{});
   } else {
     const m=MODES[mode];
-    cfg={int:m.int, rush:m.rush, pan:m.pan, menu:'main', duration:DURATION, label:m.name};
+    // Practice gets the new two-course tables and the larder helping out first, before the daily does.
+    cfg={int:m.int, rush:m.rush, pan:m.pan, menu:'main', duration:DURATION, label:m.name, courses:true, helps:2};
   }
   cfg.decayMul = cfg.decayMul || {};
   const seed = opts.seed || (kind==='daily' ? 'daily|'+opts.daily.date : kind==='stage' ? 'stage|'+opts.stage : 'practice|'+Date.now()+'|'+Math.random());
@@ -440,7 +455,8 @@ function newGame(mode, opts){
        stn:{grill:[],pan:[],larder:[],garnish:[]}, chk:{grill:-9,pan:-9,larder:-9,garnish:-9},
        sat:100, runners:[0,0], paused:false, over:false, closing:false, closeAt:0,
        scores:[], waits:[], sentQs:[], grid:'', covers:0, served:0, walked:0, clean:0, awkward:0, dead:0, refires:0,
-       streak:0, bestStreak:0, spiked:0, log:[]};
+       streak:0, bestStreak:0, spiked:0, log:[], helps:0, help:null, helpUsed:0, helpHint:0};
+  G.helps = G.cfg.helps||0;
   G.rT = rng('plan');
   if(kind==='stage') stageSetup(); else planService();
   boardEl.innerHTML=''; winEl.querySelectorAll('.plate').forEach(p=>p.remove());
@@ -470,12 +486,12 @@ function nextTable(){
   for(let i=0;i<20;i++){ G.tn = (G.tn%14)+1; if(!used.has(G.tn)) return G.tn; }
   return G.tn;
 }
-function mkDish(it,key){ return {id:G.did++,tid:0,key,name:it[0],abbr:it[1],base:it[2],short:it[3],state:'unfired',rem:0,q:100,dead:false,sel:true,mods:{},refire:false,early:false,sentQ:0,fires:0,checks:0,slowMul:1,ui:{}}; }
+function mkDish(it,key){ return {id:G.did++,tid:0,key,name:it[0],abbr:it[1],base:it[2],short:it[3],state:'unfired',rem:0,q:100,dead:false,sel:true,mods:{},refire:false,early:false,sentQ:0,fires:0,checks:0,slowMul:1,course:1,hold:false,ui:{}}; }
 function findDish(abbr){ const menu=MENUS[G.cfg.menu]; for(const k of KEYS){ const it=menu[k].find(x=>x[1]===abbr); if(it) return [it,k]; } return null; }
 // r: the ticket's own seeded generator. spec: a scripted Stage ticket instead of a random one.
 function makeTicket(w,r,spec){
   const menu=MENUS[G.cfg.menu], ds=[];
-  let covers, allergy=false, rush=false, vip=false;
+  let covers, allergy=false, rush=false, vip=false, multi=false;
   if(spec){
     covers=spec.covers||2;
     spec.dishes.forEach(x=>{ const a=typeof x==='string'?{a:x}:x; const f=findDish(a.a); const d=mkDish(f[0],f[1]); if(a.slow) d.slowMul=a.slow; ds.push(d); });
@@ -493,6 +509,12 @@ function makeTicket(w,r,spec){
     vip = r()<w.vip;
     if(allergy){ const mains=ds.filter(d=>d.key==='grill'||d.key==='pan'); pick(r,mains).mods.allergy=pick(r,ALLERGIES); }
     ds.forEach(d=>{ if(d.key==='garnish'&&r()<w.xc) d.mods.xc=true; });
+    // Two courses: the larder dishes go first as starters, everything else waits for the away call.
+    if(G.cfg.courses && w.idx>=1 && ds.some(d=>d.key==='larder') && ds.some(d=>d.key==='grill'||d.key==='pan') && r()<.4){
+      multi=true;
+      ds.forEach(d=>{ if(d.key!=='larder'){ d.course=2; d.hold=true; } });
+      ds.sort((a,b)=>a.course-b.course);
+    }
   }
   ds.forEach(d=>{
     let f=1; if(d.mods.allergy) f*=1.25; if(d.mods.xc) f*=1.35;
@@ -500,6 +522,8 @@ function makeTicket(w,r,spec){
   });
   const t = {id:G.tid++, table:nextTable(), covers, born:G.t, dishes:ds, rush, vip, allergy, done:false, walked:false,
              par:(45+6*ds.length)*(rush?.78:1)*(vip?.9:1)*(G.cfg.parMul||1), wave:w.name, splitAt:null, gap:null, refires:0, ui:{}, allergyText:allergy?(ds.find(d=>d.mods.allergy).mods.allergy):''};
+  t.multi=multi; t.course=1; t.cStart=G.t; t.eatUntil=null; t.tsList=[]; t.waitTot=0; t.pen=0; t.anySplit=false; t.lateAny=false;
+  t.parC = multi ? coursePar(t,1) : t.par;
   ds.forEach(d=>{ d.tid=t.id; G.dmap[d.id]=d; });
   G.tickets.push(t); G.tmap[t.id]=t;
   G.log.push(ds.map(d=>d.abbr+(d.mods.allergy?'!':'')+(d.mods.xc?'+':'')).join(',')+(rush?'|R':'')+(vip?'|V':''));
@@ -507,6 +531,16 @@ function makeTicket(w,r,spec){
   A.printer();
   stageEvent('spawn',t);
   return t;
+}
+function coursePar(t,c){ const n=t.dishes.filter(d=>d.course===c).length; return (45+6*n)*(t.rush?.78:1)*(t.vip?.9:1)*(G.cfg.parMul||1); }
+const inCourse = (t,d) => !t.multi || d.course===t.course;
+const eating = t => t.eatUntil!=null;
+const ageOf = t => eating(t) ? 0 : G.t-t.cStart;
+function callMains(t){
+  t.eatUntil=null; t.course=2; t.cStart=G.t; t.parC=coursePar(t,2); t.readyNoted=false;
+  t.dishes.forEach(d=>{ d.hold=false; });
+  printerEl.classList.remove('feeding'); void printerEl.offsetWidth; printerEl.classList.add('feeding');
+  A.printer(); say('WAITER','Table '+t.table+', away mains!');
 }
 function trySpawn(){
   const p=G.plan[G.pi]; if(!p || G.t < p.at+G.delay) return;
@@ -519,7 +553,7 @@ function trySpawn(){
 
 /* ---------- brigade ---------- */
 function say(key,text){
-  const w=ST[key].label;
+  const w=ST[key]?ST[key].label:key;
   bubbleEl.innerHTML='';
   const b=el('div','bub',bubbleEl); el('b','',b,w); b.appendChild(document.createTextNode(text));
   clearTimeout(bubT); clearTimeout(bubT2);
@@ -531,6 +565,8 @@ function toast(msg,bad){
 }
 function fireDish(d){
   const t=G.tmap[d.tid]; if(!t||t.done||d.state!=='unfired') return;
+  if(d.hold){ toast('Mains on hold. Table '+t.table+(eating(t)?' is eating starters.':' is still on starters.'),true); A.err(); return; }
+  if(d.key==='larder' && G.help){ say('larder','I\'m on the '+ST[G.help.key].tag.toLowerCase()+', chef!'); A.err(); return; }
   const arr=G.stn[d.key];
   if(arr.length>=ST[d.key].cap){ say(d.key,'Hands full, chef!'); A.err(); return; }
   const r=rng('fire|'+d.id+'|'+(d.fires++));
@@ -570,8 +606,8 @@ function binDish(d){
 
 /* ---------- sending and scoring ---------- */
 function selectTicket(id){ if(G.sel===id) return; G.sel=id; A.swipe(); }
-function readyPlates(t){ return t.dishes.filter(d=>d.state==='plated'&&!d.dead&&d.sel); }
-function remainingOf(t){ return t.dishes.filter(d=>d.state!=='sent'&&d.state!=='gone').length; }
+function readyPlates(t){ return t.dishes.filter(d=>inCourse(t,d)&&d.state==='plated'&&!d.dead&&d.sel); }
+function remainingOf(t){ return t.dishes.filter(d=>inCourse(t,d)&&d.state!=='sent'&&d.state!=='gone').length; }
 function sendTicket(t){
   if(!t||t.done||!G||G.over||G.paused) return;
   const plates=readyPlates(t);
@@ -583,13 +619,16 @@ function sendTicket(t){
   G.runners[ri]=rand(rng('run|'+(G.sends++)),6,8);
   A.bell();
   if(all){
-    t.gap = t.splitAt!=null ? G.t-t.splitAt : null;
-    finishTicket(t);
+    closeCourse(t);
+    if(t.multi && t.course===1){
+      t.eatUntil = G.t + rand(rng('eat|'+t.id),18,28);
+      toast('Starters away, table '+t.table+'. Mains when they call.');
+    } else finishTicket(t);
   } else if(t.splitAt==null){ t.splitAt=G.t; stageEvent('split',t); }
 }
 function sendSel(){ sendTicket(selT()); }
 function settle(t,score,walked){
-  G.scores.push({s:score,w:t.vip?2:1,wave:t.wave,table:t.table,late:walked||(G.t-t.born)>t.par});
+  G.scores.push({s:score,w:t.vip?2:1,wave:t.wave,table:t.table,late:walked||t.lateAny});
   G.sat = clamp(G.sat + (score-62)*.2 - (walked?4:0), 0, 100);
   if(score>=75){ G.streak++; G.bestStreak=Math.max(G.bestStreak,G.streak); } else G.streak=0;
 }
@@ -599,18 +638,25 @@ function retire(t){
   if(c){ c.classList.add('out'); setTimeout(()=>{ if(c.parentNode) c.remove(); },260); }
   if(G.sel===t.id) G.sel=0;
 }
+// Times and splits are judged per course. A one-course ticket is simply a single course.
+function closeCourse(t){
+  const wait=G.t-t.cStart, over=Math.max(0,wait-t.parC);
+  t.tsList.push(clamp(100-over*2*(t.allergy?1.4:1),0,100));
+  t.waitTot+=wait; if(wait>t.parC) t.lateAny=true;
+  if(t.splitAt!=null){
+    const gap=G.t-t.splitAt; t.anySplit=true; t.gap=gap;
+    if(gap>GRACE){ t.pen+=Math.min(45,(gap-GRACE)*1.5); G.awkward++; } else G.clean++;
+    t.splitAt=null;
+  }
+}
 function finishTicket(t){
-  const wait=G.t-t.born;
   const fr=t.dishes.reduce((a,d)=>a+d.sentQ,0)/t.dishes.length;
-  const over=Math.max(0,wait-t.par);
-  const ts=clamp(100-over*2*(t.allergy?1.4:1),0,100);
-  let pen=0;
-  if(t.gap!=null){ if(t.gap>GRACE){ pen=Math.min(45,(t.gap-GRACE)*1.5); G.awkward++; } else G.clean++; }
-  pen+=t.refires*10;
+  const ts=t.tsList.reduce((a,b)=>a+b,0)/t.tsList.length;
+  const pen=t.pen+t.refires*10;
   const score=Math.round(clamp(.5*fr+.5*ts-pen,0,100));
   t.score=score;
-  G.served++; G.covers+=t.covers; G.waits.push(wait);
-  G.grid += t.refires>0 ? 'r' : t.gap!=null ? 'a' : 'g';
+  G.served++; G.covers+=t.covers; G.waits.push(t.waitTot);
+  G.grid += t.refires>0 ? 'r' : t.anySplit ? 'a' : 'g';
   settle(t,score,false);
   G.spiked++; $('#spikeN').textContent=G.spiked; A.spike();
   retire(t);
@@ -623,7 +669,7 @@ function walkout(t,silent){
     const arr=G.stn[d.key], i=arr.indexOf(d); if(i>=0) arr.splice(i,1);
     d.state='gone';
   });
-  G.walked++; if(t.gap==null&&t.splitAt!=null) G.awkward++;
+  G.walked++; if(t.splitAt!=null) G.awkward++;
   G.grid += 'r';
   t.score=0; settle(t,0,true); retire(t);
   if(!silent){ toast('Table '+t.table+' walked out!',true); A.err(); stageEvent('walk',t); }
@@ -650,16 +696,38 @@ function update(dt){
         if(d.q<=0){ d.q=0; d.dead=true; G.dead++; say(d.key,'Dead plate on table '+t.table+'!'); A.err(); toast('Dead plate. Bin it and refire.',true); stageEvent('dead',d); }
       }
     }
-    const age=G.t-t.born;
-    if(age>t.par) overdue++;
-    if(age>t.par*2.2) walkout(t);
+    if(eating(t)){ if(G.t>=t.eatUntil) callMains(t); continue; }
+    const age=ageOf(t);
+    if(age>t.parC) overdue++;
+    if(age>t.parC*2.2) walkout(t);
   }
+  helpTick();
   G.sat=Math.max(0,G.sat-.06*overdue*dt);
   for(let i=0;i<G.runners.length;i++) if(G.runners[i]>0) G.runners[i]=Math.max(0,G.runners[i]-dt);
   if(G.over) return;
   if(G.min>=240&&!G.closing){ G.closing=true; G.closeAt=G.t; toast('22:00. Doors shut. Get the last tables out.'); }
   if(G.sat<=0) return endGame('empty');
   if(G.closing && openTickets().length===0) endGame('closed');
+}
+
+/* ---------- larder helping out ----------
+   The starters chef with nothing on can jump on a section that's buried. Two goes a service (Practice for now).
+   While they're away, nothing new can go on larder. */
+function helpTick(){
+  if(G.help && G.t>=G.help.until){ say('larder','Back on larder, chef!'); G.help=null; }
+  if(!G.helps || G.help || G.stn.larder.length || G.t<G.helpHint) return;
+  for(const k of ['grill','pan','garnish']){
+    if(G.stn[k].length>ST[k].free){ say('larder','Larder\'s free, chef. Want me on '+ST[k].tag.toLowerCase()+'? Tap it.'); G.helpHint=G.t+20; return; }
+  }
+}
+function sendHelp(k){
+  if(!G||G.over||G.paused||!G.cfg.helps) return;
+  if(k==='larder'){ say('larder', G.help?'On the '+ST[G.help.key].tag.toLowerCase()+', chef!':G.helps?'Free hands here. Tap a section and I\'ll jump on it. '+G.helps+' left.':'No more spare hands tonight, chef.'); return; }
+  if(G.help){ toast('Larder is already on the '+ST[G.help.key].tag.toLowerCase()+'.',true); return; }
+  if(!G.helps){ toast('No more spare hands tonight.',true); A.err(); return; }
+  if(G.stn.larder.length){ say('larder','Still got starters on, chef!'); A.err(); return; }
+  G.help={key:k, until:G.t+HELP_SECS}; G.helps--; G.helpUsed++;
+  say('larder','Jumping on '+ST[k].tag.toLowerCase()+', chef!'); A.tap();
 }
 
 /* ---------- the Stage ----------
@@ -818,7 +886,7 @@ const STAGE_PASS = 55;
 function buildBrigade(){
   brigadeEl.innerHTML='';
   KEYS.forEach(k=>{
-    const c=el('div','stn',brigadeEl); el('b','',c,ST[k].label);
+    const c=el('div','stn',brigadeEl); c.dataset.k=k; el('b','',c,ST[k].label);
     const s=el('small','',c); el('span','dot',s); const tx=el('span','',s,'calm');
     stnUi[k]={c,tx};
   });
@@ -834,7 +902,8 @@ function mkCard(t){
   if(t.allergy) el('span','tag',tags,t.allergyText||'ALLERGY');
   const sb=el('button','tsend',h,''); sb.dataset.tid=t.id; t.ui.send=sb; t.ui.skey='';
   const g=el('div','tgrid',c);
-  t.dishes.forEach(d=>{
+  t.dishes.forEach((d,i)=>{
+    if(t.multi && (i===0 || d.course!==t.dishes[i-1].course)){ const cl=el('div','crs',g,d.course===1?'STARTERS':'MAINS'); if(d.course===2) t.ui.mains=cl; }
     const ch=el('div','chip',g); ch.dataset.did=d.id;
     el('span','cn',ch,d.short+(d.mods.xc?' (XC)':''));
     d.ui.cs=el('span','cs',ch,''); d.ui.chip=ch; d.ui.cstx='';
@@ -844,7 +913,7 @@ function mkCard(t){
 function statusText(d){
   if(d.dead) return 'BIN IT';
   switch(d.state){
-    case 'unfired': return (d.refire?'REFIRE ':'FIRE ')+d.base+'s';
+    case 'unfired': return d.hold ? 'HOLD '+d.base+'s' : (d.refire?'REFIRE ':'FIRE ')+d.base+'s';
     case 'cooking': return 'cooking...';
     case 'plated': return (d.sel?'':'HELD ')+Math.round(d.q)+'%';
     case 'sent': return 'sent';
@@ -871,18 +940,22 @@ function render(){
   open.forEach(t=>t.dishes.forEach(d=>{ if(d.state==='unfired'||d.state==='cooking') outBy[d.key]++; }));
   KEYS.forEach(k=>{
     const n=G.stn[k].length, u=stnUi[k];
-    const fr=ST[k].free; u.c.className='stn'+(n>fr?' weeds':n>=fr-1?' busy':'');
-    u.tx.textContent=(n>fr?'in the weeds':n>=fr-1?'busy':'calm')+(outBy[k]?' · '+outBy[k]:'');
+    const fr=ST[k].free+(G.help&&G.help.key===k?HELP_HANDS:0);
+    const helped=G.help&&G.help.key===k, helping=G.help&&k==='larder';
+    u.c.className='stn'+(n>fr?' weeds':n>=fr-1?' busy':'')+(helped?' helped':'')+(helping?' helping':'');
+    u.tx.textContent = helping ? 'on '+ST[G.help.key].tag.toLowerCase()
+      : (helped ? '+larder '+Math.ceil(G.help.until-G.t)+'s' : (n>fr?'in the weeds':n>=fr-1?'busy':'calm'))+(outBy[k]?' · '+outBy[k]:'')+(k==='larder'&&G.cfg.helps?' · ✋'+G.helps:'');
   });
   openNEl.textContent=open.length;
   for(const t of open){
     if(!t.ui.card) mkCard(t);
-    const age=G.t-t.born;
-    t.ui.timer.textContent=fmt(age);
-    t.ui.timer.className='tt'+(age>t.par?' over':'')+(age>t.par*1.6?' late':'');
-    t.ui.card.className='tk'+(G.sel===t.id?' sel':'')+(age>t.par?' over':'');
+    const age=ageOf(t);
+    t.ui.timer.textContent=eating(t)?'EATING':fmt(age);
+    t.ui.timer.className='tt'+(age>t.parC?' over':'')+(age>t.parC*1.6?' late':'');
+    t.ui.card.className='tk'+(G.sel===t.id?' sel':'')+(age>t.parC?' over':'');
+    if(t.ui.mains){ const mt=t.course===2?'MAINS · AWAY':eating(t)?'MAINS · ON HOLD, EATING STARTERS':'MAINS · ON HOLD'; if(t.ui.mtx!==mt){ t.ui.mains.textContent=mt; t.ui.mtx=mt; t.ui.mains.className='crs'+(t.course===2?' away':''); } }
     t.dishes.forEach(d=>{
-      d.ui.chip.className='chip '+d.key+' s-'+d.state+(d.dead?' dead':'')+(d.mods.allergy?' alg':'')+(d.state==='plated'&&!d.sel&&!d.dead?' held':'');
+      d.ui.chip.className='chip '+d.key+' s-'+d.state+(d.hold?' hold':'')+(d.dead?' dead':'')+(d.mods.allergy?' alg':'')+(d.state==='plated'&&!d.sel&&!d.dead?' held':'');
       const tx=statusText(d); if(d.ui.cstx!==tx){ d.ui.cs.textContent=tx; d.ui.cstx=tx; }
     });
     const pl=readyPlates(t), rem=remainingOf(t);
@@ -945,7 +1018,7 @@ function startScreen(){
   const sk=currentStreak();
   h+='<div class="stats">'+(sk?'Daily streak '+sk+' day'+(sk>1?'s':'')+' · ':'')+(NET.token?'Signed in as '+esc(NET.name):'Playing as a guest')+'</div>';
   h+='<div class="sect">LEARN</div><div class="modes"><button class="mode'+(fresh?' next':'')+'" data-act="stages"><b>The Stage'+(save.stage?' ('+Math.min(save.stage,STAGES.length)+'/'+STAGES.length+')':'')+'</b><small>'+(fresh?'New here? Start your stage. The head chef talks you through it.':'Short guided services with the head chef. One skill at a time.')+'</small></button></div>';
-  h+='<div class="sect">PRACTICE</div><div class="modes">';
+  h+='<div class="sect">PRACTICE</div><div class="stats" style="margin:0 0 6px;text-align:left">New in Practice: two-course tables, and a free larder chef can jump on a buried section (tap it).</div><div class="modes">';
   MODES.forEach((m,i)=>{
     const locked=i>save.unlocked;
     h+='<button class="mode'+(i===chosenMode&&!locked?' on':'')+(locked?' locked':'')+'" data-act="mode" data-i="'+i+'"><b>'+m.name+(save.best[i]?' ('+save.best[i]+'%)':'')+'</b><small>'+(locked?'Locked: '+m.need:m.sub)+'</small></button>';
@@ -1134,7 +1207,7 @@ function endGame(reason){
   h+='<div class="chef"><small>CHEF\'S VERDICT</small>"'+esc(verdict)+'"</div>';
   h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+clockAt(G.t)+'.':reason==='left'?'You left the pass at '+clockAt(G.t)+'.':'Service complete. Last table away at '+clockAt(G.t)+'.')+'</div><div class="rule"></div>';
   h+=row('Covers served',G.covers)+row('Tables away',G.served+' / '+(G.served+G.walked))+row('Average ticket time',fmt(avgT))+row('Food freshness',fresh+'%');
-  h+=row('Split calls',G.clean+' clean, '+G.awkward+' awkward')+row('Dead plates / refires',G.dead+' / '+G.refires)+row('Best streak',G.bestStreak+' tables');
+  h+=row('Split calls',G.clean+' clean, '+G.awkward+' awkward')+row('Dead plates / refires',G.dead+' / '+G.refires)+row('Best streak',G.bestStreak+' tables')+(G.cfg.helps?row('Larder helped out',G.helpUsed+' / '+G.cfg.helps):'');
   h+='<div class="rule"></div>';
   if(isBest&&rating>0) h+='<div class="note">New personal best.</div>';
   if(unlockMsg) h+='<div class="note">'+unlockMsg+'</div>';
@@ -1211,6 +1284,7 @@ winEl.addEventListener('click',e=>{
   }
   d.sel=!d.sel; A.tap();
 });
+brigadeEl.addEventListener('click',e=>{ const c=e.target.closest('.stn'); if(c) sendHelp(c.dataset.k); });
 $('#btnMute').addEventListener('click',()=>{ A.muted=!A.muted; save.muted=A.muted; writeSave(); setMuteIcon(); A.unlock(); Online.syncSoon(); });
 $('#btnPause').addEventListener('click',()=>{ if(G&&!G.over&&!G.paused){ G.paused=true; pauseScreen(); } });
 document.addEventListener('visibilitychange',()=>{ if(document.hidden&&G&&!G.over&&!G.paused&&!headless){ G.paused=true; pauseScreen(); } });
@@ -1368,7 +1442,7 @@ Online.refresh();
 
 /* handles for testing */
 window.__pass = {newGame,update,render,state:()=>G,fire:fireDish,check:checkDish,select:selectTicket,send:sendSel,sendTicket,bin:binDish,endGame,save:()=>save,A,
-  headless(on){ headless=!!on; }, receiptCanvas, DAYS, LAUNCH, DAILY_DURATION, dailyInfo, STAGES, shareText, seeded};
+  headless(on){ headless=!!on; }, help:sendHelp, receiptCanvas, DAYS, LAUNCH, DAILY_DURATION, dailyInfo, STAGES, shareText, seeded};
 
 if('serviceWorker' in navigator && /^https?:/.test(location.protocol)){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
