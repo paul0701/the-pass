@@ -1061,6 +1061,16 @@ function practiceMenu(){
   h+='<button class="go alt" data-act="home">BACK</button><div class="stats">Longest table streak '+save.streak+' · Services run '+save.played+'</div></div>';
   showOverlay(h);
 }
+function dailyBrief(){
+  const info=dailyInfo(todayUtc());
+  let h='<div class="card"><h1>DAILY</h1><div class="sub">'+dnum(info.number)+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
+  h+='<div class="verdict">'+info.title+'.</div>';
+  h+='<div class="prose"><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
+  h+='<p>Then share your card and see how everyone else got on.</p>';
+  h+=NET.token ? '<p>Signed in as <b>'+esc(NET.name)+'</b>, so your streak and stats follow you to any device.</p>' : '<p>Your streak and stats are kept on this phone. <a href="#" data-act="account">Sign in</a> if you want them on every device.</p>';
+  h+='</div><button class="go" data-act="dailygo">START THE SERVICE</button><button class="go alt" data-act="home">NOT YET</button></div>';
+  showOverlay(h);
+}
 function stageMenu(){
   let h='<div class="card"><h1>THE STAGE</h1><div class="sub">You\'re the new stagiaire. Listen to chef.</div><div class="modes">';
   STAGES.forEach((s,i)=>{
