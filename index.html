@@ -151,6 +151,20 @@ button{font-family:inherit;color:inherit}
 .sect{font-size:10px;letter-spacing:.2em;color:#555;margin:12px 0 4px}
 .mode.next{border-color:#c0392b;box-shadow:inset 4px 0 0 #c0392b}
 .links{display:flex;gap:6px;margin-top:10px}
+.hero{background:#c0392b;color:#fff;border-radius:10px;padding:16px 14px 14px;text-align:center;margin:4px 0 6px;box-shadow:0 3px 0 #8e2a1f}
+.hero.done{background:#1d1d1d;box-shadow:0 3px 0 #000}
+.hero .k{font:700 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.22em;opacity:.85}
+.hero .n{font:800 38px/1.05 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;margin:4px 0 2px}
+.hero .d{font:600 14px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.hero .f{font-size:11.5px;opacity:.85;margin-top:4px}
+.hero .stars{color:#ffcf7a;font-size:22px;letter-spacing:.1em}
+.hero .sq{font-size:13px;margin:6px 0 2px}
+.hero .hb{display:block;width:100%;margin-top:12px;padding:13px;border:0;border-radius:7px;background:#fff;color:#c0392b;font:800 16px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;cursor:pointer}
+.hero.done .hb{background:#c0392b;color:#fff}
+.hero .hrow{display:flex;gap:6px;margin-top:6px}
+.hero .hrow button{flex:1;padding:9px 4px;border:2px solid #ffffff55;border-radius:7px;background:transparent;color:#fff;font:700 11.5px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;cursor:pointer}
+.hint{text-align:center;font-size:12px;margin:8px 0 0}
+.hint a{color:#c0392b;font-weight:700}
 .links button{flex:1;border:2px solid #1d1d1d;background:transparent;border-radius:6px;padding:8px 4px;font:700 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;cursor:pointer;color:#1d1d1d}
 .card input{display:block;width:100%;font:16px ui-monospace,Menlo,Consolas,monospace;padding:9px 10px;border:2px solid #1d1d1d;border-radius:6px;background:#fff;color:#1d1d1d;-webkit-user-select:text;user-select:text;margin:3px 0 8px}
 .card label{font-size:11px;letter-spacing:.08em;color:#555}
@@ -1011,38 +1025,40 @@ function todayStatus(){
 }
 function currentStreak(){ return NET.token ? NET.streak : localStreak(todayUtc()); }
 
+/* The daily takes pride of place. Everything else (the Stage and free services) lives under Practice. */
 function startScreen(){
   const date=todayUtc(), info=dailyInfo(date), st=todayStatus();
   const fresh = !save.played && !save.stage;
   let h='<div class="card"><h1>THE PASS</h1><div class="sub">Head chef. Tonight\'s service. Full book. <span class="tag" style="vertical-align:1px">BETA</span></div>';
   if(st&&st.finished){
-    h+='<button class="daily done" data-act="report"><b>DAILY '+dnum(info.number).toUpperCase()+' · '+info.short.toUpperCase()+' · '+st.pct+'%</b><small><span class="stars">'+stars(st.pct)+'</span> Done for today. Tap to share. Next service at midnight UTC.</small></button>';
+    h+='<div class="hero done"><div class="k">DAILY '+dnum(info.number).toUpperCase()+' · '+info.short.toUpperCase()+'</div><div class="n">'+st.pct+'%</div><div class="stars">'+stars(st.pct)+'</div>';
+    if(st.grid) h+='<div class="sq">'+squares(st.grid).replace(/\n/g,'<br>')+'</div>';
+    h+='<button class="hb" data-act="share">SHARE</button><div class="hrow"><button data-act="report">REPORT</button><button data-act="image">IMAGE</button><button data-act="stats">STATS</button></div>';
+    h+='<div class="f">Next service in '+nextIn()+'</div></div>';
   } else if(st&&st.started){
-    h+='<button class="daily done" data-act="stats"><b>DAILY '+dnum(info.number).toUpperCase()+' · '+info.short.toUpperCase()+'</b><small>You started today\'s service and left the pass. It still counts. Back tomorrow, chef.</small></button>';
+    h+='<div class="hero done"><div class="k">DAILY '+dnum(info.number).toUpperCase()+' · '+info.short.toUpperCase()+'</div><div class="d" style="margin-top:8px">You left the pass mid-service.<br>It still counts. Back tomorrow, chef.</div>';
+    h+='<div class="hrow" style="margin-top:12px"><button data-act="stats">STATS</button></div><div class="f">Next service in '+nextIn()+'</div></div>';
   } else {
-    h+='<button class="daily" data-act="dailybrief"><b>DAILY SERVICE '+dnum(info.number).toUpperCase()+'</b><small>'+info.name+': '+info.title+'. Same tickets for everyone. One go.</small></button>';
+    h+='<div class="hero"><div class="k">DAILY SERVICE</div><div class="n">'+dnum(info.number).toUpperCase()+'</div><div class="d">'+info.name+' · '+info.title+'</div>';
+    h+='<button class="hb" data-act="dailybrief">START SERVICE</button><div class="f">Same tickets for everyone. One go a day.</div></div>';
+    if(fresh) h+='<div class="hint">First time on the pass? <a href="#" data-act="stages">Try the Stage</a> first.</div>';
   }
   const sk=currentStreak();
   h+='<div class="stats">'+(sk?'Daily streak '+sk+' day'+(sk>1?'s':'')+' · ':'')+(NET.token?'Signed in as '+esc(NET.name):'Playing as a guest')+'</div>';
-  h+='<div class="sect">LEARN</div><div class="modes"><button class="mode'+(fresh?' next':'')+'" data-act="stages"><b>The Stage'+(save.stage?' ('+Math.min(save.stage,STAGES.length)+'/'+STAGES.length+')':'')+'</b><small>'+(fresh?'New here? Start your stage. The head chef talks you through it.':'Short guided services with the head chef. One skill at a time.')+'</small></button></div>';
-  h+='<div class="sect">PRACTICE</div><div class="stats" style="margin:0 0 6px;text-align:left">New in Practice: when the larder chef is free, tap a buried section and they\'ll jump on it.</div><div class="modes">';
-  MODES.forEach((m,i)=>{
-    const locked=i>save.unlocked;
-    h+='<button class="mode'+(i===chosenMode&&!locked?' on':'')+(locked?' locked':'')+'" data-act="mode" data-i="'+i+'"><b>'+m.name+(save.best[i]?' ('+save.best[i]+'%)':'')+'</b><small>'+(locked?'Locked: '+m.need:m.sub)+'</small></button>';
-  });
-  h+='</div><button class="go alt" data-act="start">START PRACTICE</button>';
-  h+='<div class="links"><button data-act="stats">STATS</button><button data-act="account">'+(NET.token?'ACCOUNT':'SIGN IN')+'</button>'+(CHARITY.enabled?'<button data-act="charity">SUPPORT</button>':'')+'</div>';
-  h+='<div class="stats">Longest table streak '+save.streak+' · Services run '+save.played+'</div></div>';
+  h+='<div class="links" style="margin-top:14px"><button data-act="practice">PRACTICE</button><button data-act="stats">STATS</button><button data-act="account">'+(NET.token?'ACCOUNT':'SIGN IN')+'</button>'+(CHARITY.enabled?'<button data-act="charity">SUPPORT</button>':'')+'</div>';
+  h+='</div>';
   showOverlay(h);
 }
-function dailyBrief(){
-  const info=dailyInfo(todayUtc());
-  let h='<div class="card"><h1>DAILY</h1><div class="sub">'+dnum(info.number)+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
-  h+='<div class="verdict">'+info.title+'.</div>';
-  h+='<div class="prose"><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
-  h+='<p>Then share your card and see how everyone else got on.</p>';
-  h+=NET.token ? '<p>Signed in as <b>'+esc(NET.name)+'</b>, so your streak and stats follow you to any device.</p>' : '<p>Your streak and stats are kept on this phone. <a href="#" data-act="account">Sign in</a> if you want them on every device.</p>';
-  h+='</div><button class="go" data-act="dailygo">START THE SERVICE</button><button class="go alt" data-act="home">NOT YET</button></div>';
+function practiceMenu(){
+  let h='<div class="card"><h1>PRACTICE</h1><div class="sub">As many as you like. Never touches your daily.</div><div class="rule"></div>';
+  h+='<div class="sect">LEARN</div><div class="modes"><button class="mode'+(!save.stage?' next':'')+'" data-act="stages"><b>The Stage'+(save.stage?' ('+Math.min(save.stage,STAGES.length)+'/'+STAGES.length+')':'')+'</b><small>Short guided services. The head chef talks you through one skill at a time.</small></button></div>';
+  h+='<div class="sect">FREE SERVICES</div><div class="modes">';
+  MODES.forEach((m,i)=>{
+    const locked=i>save.unlocked;
+    h+='<button class="mode'+(locked?' locked':'')+'" data-act="mode" data-i="'+i+'"><b>'+m.name+(save.best[i]?' · best '+save.best[i]+'%':'')+'</b><small>'+(locked?'Locked: '+m.need:m.sub)+'</small></button>';
+  });
+  h+='</div><div class="stats" style="margin:0 0 10px">When the larder chef is free, tap a buried section and they\'ll jump on it.</div>';
+  h+='<button class="go alt" data-act="home">BACK</button><div class="stats">Longest table streak '+save.streak+' · Services run '+save.played+'</div></div>';
   showOverlay(h);
 }
 function stageMenu(){
@@ -1051,7 +1067,7 @@ function stageMenu(){
     const done=i<save.stage, next=i===save.stage;
     h+='<button class="mode'+(next?' next':'')+'" data-act="stage" data-i="'+i+'"><b>'+(i+1)+'. '+s.name+(done?' ✓':'')+'</b><small>'+s.sub+'</small></button>';
   });
-  h+='</div><button class="go alt" data-act="home">BACK</button></div>';
+  h+='</div><button class="go alt" data-act="practice">BACK</button></div>';
   showOverlay(h);
 }
 function pauseScreen(){
@@ -1223,7 +1239,7 @@ function endGame(reason){
     h+='<div class="note dim" id="dailyNote">'+(NET.token?'Saving...':'Daily streak: '+sk+' day'+(sk===1?'':'s')+'.')+'</div>';
     h+='<button class="go" data-act="share" style="margin-top:12px">SHARE</button><button class="go alt" data-act="image">SAVE AS IMAGE</button><button class="go alt" data-act="stats">STATS</button>';
     h+='<button class="go alt" data-act="again">BACK TO THE PASS</button>';
-  } else h+='<button class="go" data-act="again" style="margin-top:12px">BACK TO THE PASS</button>';
+  } else h+='<button class="go" data-act="mode" data-i="'+G.mode+'" style="margin-top:12px">GO AGAIN</button><button class="go alt" data-act="practice">PRACTICE MENU</button><button class="go alt" data-act="again">BACK TO THE PASS</button>';
   if(CHARITY.enabled) h+='<div class="stats"><a href="#" data-act="charity" style="color:#555">'+esc(CHARITY.reportLine)+'</a></div>';
   h+='</div>';
   showOverlay(h);
@@ -1238,11 +1254,11 @@ function stageReport(res, passed){
   h+='<button class="go'+(passed?' alt':'')+'" data-act="stage" data-i="'+i+'">GO AGAIN</button><button class="go alt" data-act="stages">ALL STAGES</button></div>';
   showOverlay(h);
 }
+function nextIn(){ const ms=Date.parse(todayUtc()+'T00:00:00Z')+864e5-Date.now(); return Math.floor(ms/36e5)+'h '+Math.floor(ms%36e5/6e4)+'m'; }
 function statsScreen(){
   const s=myStats(), st=todayStatus(), now=st&&st.finished?starN(st.pct):-1;
   const max=Math.max(1,...s.dist);
-  const ms=Date.parse(todayUtc()+'T00:00:00Z')+864e5-Date.now();
-  const left=Math.floor(ms/36e5)+'h '+Math.floor(ms%36e5/6e4)+'m';
+  const left=nextIn();
   let h='<div class="card"><h1 style="font-size:20px">STATS</h1><div class="sub">'+(NET.token?esc(NET.name):'This phone')+'</div><div class="rule"></div>';
   h+='<div class="snums"><div><b>'+s.played+'</b><small>Played</small></div><div><b>'+(s.finished?s.avg+'%':'-')+'</b><small>Average</small></div><div><b>'+s.streak+'</b><small>Current streak</small></div><div><b>'+s.bestStreak+'</b><small>Best streak</small></div></div>';
   h+='<div class="sect">STAR RATINGS</div><div class="dist">';
@@ -1299,7 +1315,8 @@ ovEl.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]'); if(!b) return;
   e.preventDefault();
   const a=b.dataset.act;
-  if(a==='mode'){ const i=+b.dataset.i; if(i<=save.unlocked){ chosenMode=i; startScreen(); } }
+  if(a==='mode'){ const i=+b.dataset.i; if(i<=save.unlocked){ chosenMode=i; newGame(i,{kind:'practice'}); } }
+  else if(a==='practice'){ practiceMenu(); }
   else if(a==='start'){ newGame(chosenMode,{kind:'practice'}); }
   else if(a==='resume'){ G.paused=false; hideOverlay(); }
   else if(a==='quit'){ if(G&&G.kind==='daily'&&!G.over){ endGame('left'); } else { if(G) G.over=true; startScreen(); } }
@@ -1384,7 +1401,7 @@ const Online = (function(){
       const p=await api('/api/progress');
       if(p.ok){ mergeProgress(p.data.progress); syncSoon(); }
     }
-    if(!G||G.over) { if(ovEl.style.display==='flex' && /THE PASS/.test(ovEl.textContent) && $('.daily')) startScreen(); }
+    if(!G||G.over) { if(ovEl.style.display==='flex' && /THE PASS/.test(ovEl.textContent) && $('.hero')) startScreen(); }
   }
   let syncT=null;
   function syncSoon(){ if(!NET.token) return; clearTimeout(syncT); syncT=setTimeout(()=>{ api('/api/progress',{progress:progressOf()}).then(r=>{ if(r.ok) mergeProgress(r.data.progress); }); },600); }
