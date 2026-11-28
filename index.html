@@ -1183,17 +1183,19 @@ function receiptCanvas(r){
   y+=40; rule(y);
   y+=170; text(r.rating+'%','800 170px '+sans,'#1d1d1d',y);
   y+=84; text(stars(r.rating),'400 64px '+sans,'#b9801a',y);
-  const per=8, sz=62, gap=12, cols=Math.min(per,r.grid.length||1), rows=Math.ceil((r.grid.length||1)/per);
+  // Long nights and long verdicts both need room, so the squares and the verdict shrink to fit above the footer.
+  const rows=Math.ceil((r.grid.length||1)/8), long=(r.verdict||'').length>120;
+  const per=rows>4?10:8, sz=rows>3||long?(rows>4?40:50):62, gap=sz>50?12:9, cols=Math.min(per,r.grid.length||1), rws=Math.ceil((r.grid.length||1)/per);
   const gx=cx-(cols*sz+(cols-1)*gap)/2; y+=50;
   const colr={g:'#58b368',a:'#e6b04a',r:'#d9534f'};
   for(let i=0;i<r.grid.length;i++){ const cxx=gx+(i%per)*(sz+gap), cy=y+Math.floor(i/per)*(sz+gap);
     x.fillStyle=colr[r.grid[i]]||'#999'; x.beginPath(); if(x.roundRect) x.roundRect(cxx,cy,sz,sz,10); else x.rect(cxx,cy,sz,sz); x.fill(); }
-  y+=rows*(sz+gap)+40; rule(y);
+  y+=rws*(sz+gap)+30; rule(y);
   if(r.verdict){
-    y+=58; text("CHEF'S VERDICT",'700 26px '+mono,'#8a5a00',y);
-    x.font='600 38px '+sans; const words=('"'+r.verdict+'"').split(' '); let line='', lines=[];
+    y+=48; text("CHEF'S VERDICT",'700 24px '+mono,'#8a5a00',y);
+    const vf=long?(rows>3?28:31):38; x.font='600 '+vf+'px '+sans; const words=('"'+r.verdict+'"').split(' '); let line='', lines=[];
     words.forEach(w=>{ const t=line?line+' '+w:w; if(x.measureText(t).width>R-L-120){ lines.push(line); line=w; } else line=t; }); lines.push(line);
-    lines.slice(0,5).forEach(l=>{ y+=52; text(l,'600 38px '+sans,'#1d1d1d',y); });
+    lines.slice(0,6).forEach(l=>{ y+=vf*1.35; text(l,'600 '+vf+'px '+sans,'#1d1d1d',y); });
   }
   text(siteUrl().replace(/^https?:\/\//,'').replace(/\/$/,''),'400 28px '+mono,'#777',B-46);
   return c;
@@ -1235,15 +1237,52 @@ function dailyReportFromSave(){
    One blunt line on the report: a headline for the star rating, then a jab at whatever cost the most points.
    An original roasting head chef. Swearing is implied, never spelled out. Picked from the seed and score, so the
    same result always gets the same line (it goes on the share card). */
-const VERDICT = {
-  head:[
-    ['Turn the lights off. Everyone go home.','That wasn\'t a service. That was a hostage situation.','I\'ve seen better run kitchens on a ferry.'],
-    ['What... was... that?','My nan runs a tighter pass. She\'s ninety-one.','Who let you near the pass? Seriously, who?'],
-    ['You got through it. Just. Barely. Somehow.','Average. And I don\'t do average.','Not a disaster. That\'s the nicest thing I\'ll say.'],
-    ['Decent. Don\'t look so pleased with yourself.','Good. Not great. Good.','You\'re getting there. Slowly. Like your tickets.'],
-    ['Nearly. Nearly doesn\'t get five stars.','Tidy. Very nearly properly tidy.','Strong night. I hate that I have to say it.'],
-    ['Clean. Annoyingly clean.','Right. THAT is how you run a pass.','I\'ve got nothing. Don\'t get used to it.']
+/* Paul's post-service comments, in three score bands. A few only make sense when they're true, so they carry a check. */
+const CHEF_COMMENTS = {
+  low:[
+    ['Honestly, that was an absolute car crash from start to finish. I\'ve seen better coordination at a kids\' birthday party, so wake up tomorrow or don\'t bother putting your whites on.'],
+    ['Bloody hell, what were you doing on that pass tonight? The fish was rubber, the garnish was lukewarm, and you were moving like you were wading through treacle.'],
+    ['If I served that food to my dog, he\'d walk out and leave a bad review. You need to taste everything before it leaves your station because tonight was embarrassing.'],
+    ['That service was a complete disaster, and the worst part is you stopped talking to each other the second the tickets started rolling in. A silent kitchen is a dead kitchen.'],
+    ['Look at the state of this kitchen. It looks like a bomb went off in a skip. Clean it down properly, go home, and ask yourself if you actually want to be a chef.'],
+    ['You sent out raw chicken and overcooked risotto on the same table. Are you trying to close my restaurant down, or are you just asleep at the wheel?'],
+    ['I had diners waiting forty minutes for starters while you lot stood around staring at the ticket rail like it was written in ancient Greek. Pathetic.'],
+    ['Every single sauce tonight was either split or tasted like dishwater. If you can\'t respect basic ingredients, you have no business standing behind my stoves.'],
+    ['Don\'t give me excuses about being short-prepped. You had all afternoon to get your mise en place sorted. You let the whole dining room down tonight.'],
+    ['My gran could plate faster than that, and she\'s not even with us anymore. Get your head in the game, because I will not sit through another night like that.'],
+    ['That was sloppy, lazy cooking, plain and simple. You cut corners when it got busy, and every single guest out there could taste it.'],
+    ['You\'re lucky we didn\'t have a full house tonight, because if we\'d had another twenty covers, the whole place would\'ve collapsed. Sort it out.']
   ],
+  mid:[
+    ['Look, we got through it and most of the plates were solid, but your timings on the mains fell apart during the eight o\'clock rush. Tighten that up tomorrow.'],
+    ['Not bad at all, honestly, some of those plates looked lovely. You just need to be braver with your seasoning, because half the dishes were crying out for a pinch of salt.'],
+    ['You started strong and the energy was right, I\'ll give you that, but you got complacent in the last hour. Service isn\'t over until the final dessert hits the table.'],
+    ['The flavours were mostly there tonight, which is a relief, though your plating was a bit clumsy when the checks backed up. Wipe your rims before they hit the pass.'],
+    ['Decent effort, really, and the guests went home happy. Still, I had to call out twice for sauces, so work on your communication with the larder section.'],
+    ['That was a respectable service, no disasters, no walkouts. If you want to push from good to great, stop second-guessing yourself on the grill and trust your instincts.', ()=>G.walked===0],
+    ['You held your nerve when it got slammed, which I respect, even if a couple of the steaks came back slightly under. Rest the meat properly next time and we\'re laughing.'],
+    ['Good graft tonight, everyone put a shift in. Just keep your stations cleaner as you go, because a messy bench leads to messy food when the pressure\'s on.'],
+    ['We\'re getting close to the standard I want, we really are, but consistency is still letting us down. Table four got perfection and table nine got an afterthought.'],
+    ['Solid night\'s work, nothing to be ashamed of, though your ticket times dragged a bit on the fish section. Prep smarter before service so you aren\'t chasing your tail.'],
+    ['I liked the pace tonight and the food had real heart in it, I just wish you\'d double-check the allergies and mods before firing. One slip-up like that can ruin a whole evening.', ()=>G.tickets.some(t=>t.allergy)],
+    ['Passable, and on a busy night like this I\'ll take it, but don\'t get comfortable. You\'re capable of way more finesse than what went up on that pass tonight.']
+  ],
+  top:[
+    ['Bloody hell, now that is what I\'m talking about! Every single plate that left this pass tonight was an absolute stunner, and I couldn\'t be prouder of you.'],
+    ['Spot on from the first ticket to the last. The seasoning was bang on, the timing was razor sharp, and the dining room was buzzing all night.'],
+    ['Listen to me, that was a world-class service. You cooked with real confidence and zero panic, and not a single plate came back half-eaten.'],
+    ['I don\'t hand out compliments easily, you know that, so take this in: tonight was phenomenal. Grab yourself a cold drink, you\'ve earned every drop of it.'],
+    ['That was poetry in motion behind the line tonight. You communicated like pros, nailed every temperature, and made a brutal rush look effortless.'],
+    ['Seriously, well done. The flavours were vibrant, the presentation was immaculate, and that\'s the exact standard that wins Michelin stars.'],
+    ['Brilliant, just brilliant. I didn\'t have to send a single dish back all evening, which might actually be a first in this kitchen.', ()=>G.refires===0],
+    ['You absolutely smashed it tonight. When a kitchen clicks like that, there is no better feeling in the world. Bottle that energy and bring it back tomorrow.'],
+    ['Look at those empty plates coming back to the pot wash, every single one licked clean. That\'s the highest compliment a chef can ever get, so hold your head high.'],
+    ['Flawless execution from start to finish. You respected the ingredients, stayed calm under fire, and gave every single guest a meal they won\'t forget.'],
+    ['Take a bow, honestly. That was the tightest, cleanest, sharpest service we\'ve run all month, and it was a genuine pleasure standing at the pass with you.'],
+    ['Unbelievable shift tonight. Truly top drawer. If you keep cooking with that level of passion and precision, there\'s nobody out there who can touch us.']
+  ]
+};
+const VERDICT = {
   walk1:['Table {t} walked out. I\'d have walked with them.','Table {t} walked. They\'re in the chippy next door, and they\'re happier.','One walkout. Table {t}. I\'ll be ringing them to apologise. You won\'t.'],
   walk:['{n} tables walked. They\'re eating chips in the car park and they\'re happier.','{n} walkouts. The dining room is emptier than your excuses.','{n} tables walked out. I\'ve had busier funerals.'],
   refire:['{n} refires. The bin had a better night than the customers.','Binned {n} plates. We\'re a kitchen, not a landfill.','{n} refires. Every one of them on my food bill.'],
@@ -1270,7 +1309,9 @@ function verdictFor(rating){
   const key = issues[0][1]>(n>=5?15:3) ? issues[0][0] : 'clean';
   const list = key==='walk'&&G.walked===1 ? VERDICT.walk1 : VERDICT[key];
   const fill = x => x.replace('{n}',key==='walk'?G.walked:key==='refire'?G.refires:G.awkward).replace('{t}',worst?worst.table:1).replace('{w}',wv||'The Slam');
-  return pick(r,VERDICT.head[n])+' '+fill(pick(r,list));
+  const band = rating>=90 ? CHEF_COMMENTS.top : rating>=60 ? CHEF_COMMENTS.mid : CHEF_COMMENTS.low;
+  const ok = band.filter(c=>!c[1] || c[1]());
+  return { line: pick(r,ok)[0], why: key==='clean' ? '' : fill(pick(r,list)) };
 }
 
 function endGame(reason){
@@ -1290,7 +1331,7 @@ function endGame(reason){
   }
   const passed = G.kind==='stage' && rating>=STAGE_PASS;
   if(passed) save.stage=Math.max(save.stage,G.stageIx+1);
-  const verdict = G.kind==='stage' ? '' : verdictFor(rating);
+  const vd = G.kind==='stage' ? {line:'',why:''} : verdictFor(rating), verdict = vd.line;
   const res={verdict,mode:G.mode,kind:G.kind,rating,covers:G.covers,avgTicket:avgT,freshness:fresh,clean:G.clean,awkward:G.awkward,dead:G.dead,refires:G.refires,streak:G.bestStreak,reason,
              tables:G.served, walked:G.walked, grid:G.grid, seed:G.seed};
   if(G.kind==='daily'){
@@ -1311,6 +1352,7 @@ function endGame(reason){
   h+='<div class="big"><div class="pct">'+rating+'%</div><div class="stars">'+stars(rating)+'</div></div>';
   if(G.kind==='daily') h+='<div class="sq">'+squares(G.grid).replace(/\n/g,'<br>')+'</div>';
   h+='<div class="chef"><small>CHEF\'S VERDICT</small>"'+esc(verdict)+'"</div>';
+  if(vd.why) h+='<div class="stats" style="margin:4px 8px 0"><b>What cost you:</b> '+esc(vd.why)+'</div>';
   h+='<div class="note'+(reason==='empty'?' bad':'')+'">'+(reason==='empty'?'The dining room walked out at '+clockAt(G.t)+'.':reason==='left'?'You left the pass at '+clockAt(G.t)+'.':'Service complete. Last table away at '+clockAt(G.t)+'.')+'</div><div class="rule"></div>';
   h+=row('Covers served',G.covers)+row('Tables away',G.served+' / '+(G.served+G.walked))+row('Average ticket time',fmt(avgT))+row('Food freshness',fresh+'%');
   h+=row('Split calls',G.clean+' clean, '+G.awkward+' awkward')+row('Dead plates / refires',G.dead+' / '+G.refires)+row('Best streak',G.bestStreak+' tables')+(G.cfg.helps?row('Larder helped out',G.helpUsed+' / '+G.cfg.helps):'');
