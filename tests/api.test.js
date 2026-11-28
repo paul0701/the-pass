@@ -10,7 +10,9 @@ const dir = mkdtempSync(join(tmpdir(), "the-pass-blobs-"));
 const token = "test-token";
 let server, auth, daily, progress;
 const realNow = Date.now;
-let skew = 0;
+// Run the tests a few days after launch, so preview-day rules don't get in the way.
+import { LAUNCH } from "../shared/daily.js";
+let skew = Math.max(0, Date.parse(LAUNCH + "T12:00:00Z") + 5 * 864e5 - Date.now());
 
 before(async () => {
   server = new BlobsServer({ directory: dir, token, port: 0 });
@@ -49,6 +51,7 @@ test("register, sign in, wrong PIN, and taken names with suggestions", async () 
   assert.equal(r.status, 400, "obvious PIN refused");
   r = await call(auth, "POST", { action: "login", name: "Paul Jones", pin: "9999" });
   assert.equal(r.status, 401);
+  assert.match(r.data.error, /4 tries left/);
   r = await call(auth, "POST", { action: "login", name: "Paul Jones", pin: "1357", progress: { best: [70, 66, 0], unlocked: 2 } });
   assert.equal(r.status, 200);
   assert.deepEqual(r.data.progress.best, [80, 66, 0], "merge keeps the best of both devices");
@@ -124,4 +127,24 @@ test("lockout after five wrong PINs", async () => {
   for (let i = 0; i < 5; i++) await call(auth, "POST", { action: "login", name: "Sarah", pin: "0000" });
   const r = await call(auth, "POST", { action: "login", name: "Sarah", pin: "2468" });
   assert.equal(r.status, 429);
+});
+
+test("leaving the pass early is recorded, not refused", async () => {
+  const { data } = await call(auth, "POST", { action: "register", name: "Early Bird", pin: "2580" });
+  let r = await call(daily, "POST", { action: "start", date: today() }, data.token);
+  assert.equal(r.status, 200);
+  r = await call(daily, "POST", { action: "finish", date: today(), pct: 12, grid: "grr", left: true }, data.token);
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+});
+
+test("preview days before launch don't carry into the real thing", async () => {
+  const { markPlayed, publicStats, liveStreak } = await import("../netlify/lib/score.js");
+  const pre = new Date(Date.parse(LAUNCH + "T00:00:00Z") - 864e5).toISOString().slice(0, 10);
+  let d = markPlayed(null, pre);
+  d.finished = 1; d.total = 80; d.dist[3] = 1;
+  assert.equal(liveStreak(d, LAUNCH), 0);
+  assert.equal(publicStats(d, LAUNCH).played, 0);
+  d = markPlayed(d, LAUNCH);
+  assert.equal(d.streak, 1);
+  assert.equal(d.days, 1);
 });

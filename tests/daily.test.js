@@ -32,13 +32,13 @@ test("day numbers and dates", () => {
 });
 
 test("streak: consecutive days, reset after a gap, live view", () => {
-  let d = markPlayed(null, "2026-11-25");
-  d = markPlayed(d, "2026-11-26");
-  d = markPlayed(d, "2026-11-26");
+  let d = markPlayed(null, "2026-12-05");
+  d = markPlayed(d, "2026-12-06");
+  d = markPlayed(d, "2026-12-06");
   assert.equal(d.streak, 2);
-  assert.equal(liveStreak(d, "2026-11-27"), 2);
-  assert.equal(liveStreak(d, "2026-11-28"), 0);
-  d = markPlayed(d, "2026-11-29");
+  assert.equal(liveStreak(d, "2026-12-07"), 2);
+  assert.equal(liveStreak(d, "2026-12-08"), 0);
+  d = markPlayed(d, "2026-12-09");
   assert.equal(d.streak, 1);
   assert.equal(d.bestStreak, 2);
 });

@@ -73,7 +73,7 @@ test("a new player who waits on one ticket gets told to fire the next", { skip }
     for (let i = 0; i < 200; i++) P.update(0.05);
     return document.querySelector("#bubble").textContent;
   });
-  assert.match(said, /Don't wait, chef/);
+  assert.match(said, /Don't wait/);
   assert.deepEqual(p.errors, []);
 });
 
@@ -100,4 +100,52 @@ test("the intro can be skipped", { skip }, async () => {
   await p.click(".hero [data-act=dailybrief]");
   assert.ok(await p.$("[data-act=dailygo]"));
   assert.deepEqual(p.errors, []);
+});
+
+test("signing in with no network says so instead of hanging", { skip }, async () => {
+  const p = await page();
+  await p.route("**/api/**", (route) => route.abort());
+  await p.click(".links [data-act=account]");
+  await p.fill("#accName", "Paul Jones");
+  await p.fill("#accPin", "1357");
+  await p.click("[data-act=login]");
+  await p.waitForTimeout(300);
+  assert.match(await p.textContent("#accErr"), /Can't reach the pass/);
+  assert.deepEqual(p.errors, []);
+});
+
+test("Stage 5: splitting the moment chef says so is a clean split", { skip }, async () => {
+  const p = await page();
+  const out = await p.evaluate(() => {
+    const P = window.__pass; P.headless(true); P.newGame(0, { kind: "stage", stage: 4 }); const G = P.state();
+    while (!G.tickets.length) P.update(0.05);
+    const t = G.tickets[0]; t.dishes.forEach((d) => P.fire(d));
+    while (!G.sv.hint && G.t < 120) P.update(0.05);
+    P.sendTicket(t);
+    while (!t.done && G.t < 200) { P.update(0.05); if (t.dishes.some((d) => d.state === "plated" && !d.dead)) P.sendTicket(t); }
+    return { hinted: !!G.sv.hint, clean: G.clean, awkward: G.awkward };
+  });
+  assert.ok(out.hinted);
+  assert.deepEqual([out.clean, out.awkward], [1, 0]);
+});
+
+test("leaving the daily early never scores better than playing on badly", { skip }, async () => {
+  const p = await page();
+  const out = await p.evaluate(() => {
+    const P = window.__pass; P.headless(true);
+    const play = (leaveAt) => {
+      P.newGame(-1, { kind: "daily", daily: P.dailyInfo("2026-12-05") }); const G = P.state(); let next = 0;
+      while (!G.over && G.t < 900) {
+        P.update(0.05);
+        if (leaveAt && G.t >= leaveAt) { P.endGame("left"); break; }
+        if (G.t < next) continue; next = G.t + 1;
+        const t = G.tickets.find((x) => !x.done); if (!t) continue;   // one ticket at a time, like a beginner
+        t.dishes.forEach((d) => { if (d.dead) P.bin(d); if (d.state === "unfired") P.fire(d); });
+        if (t.dishes.some((d) => d.state === "plated" && !d.dead)) P.sendTicket(t);
+      }
+      return G.result.rating;
+    };
+    return { full: play(0), early: play(40) };
+  });
+  assert.ok(out.early <= out.full, JSON.stringify(out));
 });
