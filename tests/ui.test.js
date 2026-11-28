@@ -167,3 +167,22 @@ test("plates can't be held back: tapping a ready plate never turns SEND into SPL
   assert.equal(out, "SEND");
   assert.deepEqual(p.errors, []);
 });
+
+test("share buttons open each network with the card", { skip }, async () => {
+  const p = await page();
+  await p.click(".hero [data-act=dailybrief]");
+  await p.click("[data-act=dailygo]");
+  await p.evaluate(() => {
+    window.__opened = []; window.open = (u) => { window.__opened.push(u); return {}; };
+    const P = window.__pass; P.headless(true); const G = P.state();
+    while (G.t < 30) P.update(0.05);
+    P.headless(false); P.endGame("left");
+  });
+  for (const n of ["whatsapp", "x", "linkedin", "facebook"]) await p.click(`[data-act=social][data-net=${n}]`);
+  const opened = await p.evaluate(() => window.__opened);
+  assert.match(opened[0], /^https:\/\/wa\.me\/\?text=The%20Pass/);
+  assert.match(opened[1], /^https:\/\/twitter\.com\/intent\/tweet\?text=The%20Pass/);
+  assert.match(opened[2], /^https:\/\/www\.linkedin\.com\/feed\/\?shareActive=true&text=The%20Pass/);
+  assert.match(opened[3], /^https:\/\/www\.facebook\.com\/sharer\/sharer\.php\?u=/);
+  assert.deepEqual(p.errors, []);
+});

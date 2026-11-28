@@ -2,7 +2,7 @@
    Network first so a new deploy shows up straight away, with the cache as the offline fallback.
    Anything under /.netlify/ or /api/ (leaderboard, daily and account functions) always goes to the network
    and is never cached, so the daily result and the one-attempt check are always live. */
-const CACHE = 'the-pass-v2';
+const CACHE = 'the-pass-v3';
 const CORE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
