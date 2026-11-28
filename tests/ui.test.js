@@ -35,13 +35,13 @@ test("the daily starts from the big card", { skip }, async () => {
 
 test("Practice menu starts a free service, and the Stage starts from it", { skip }, async () => {
   const p = await page();
-  await p.click(".links [data-act=practice]");
+  await p.click(".hint [data-act=practice]");
   await p.click("[data-act=mode][data-i='0']");
   await p.waitForTimeout(200);
   assert.equal(await kind(p), "practice");
   await p.click("#btnPause");
   await p.click("[data-act=quit]");
-  await p.click(".links [data-act=practice]");
+  await p.click(".hint [data-act=practice]");
   await p.click("[data-act=stages]");
   await p.click("[data-act=stage][data-i='0']");
   await p.waitForTimeout(200);
@@ -51,11 +51,27 @@ test("Practice menu starts a free service, and the Stage starts from it", { skip
 
 test("every menu button has something behind it", { skip }, async () => {
   const p = await page();
-  for (const [open, sel] of [["", ".links [data-act=stats]"], ["", ".links [data-act=account]"], ["", ".links [data-act=practice]"], ["", ".hint [data-act=stages]"]]) {
+  for (const [open, sel] of [["", ".links [data-act=stats]"], ["", ".links [data-act=account]"], ["", ".hint [data-act=practice]"], ["", ".hint [data-act=stages]"]]) {
     await p.goto(url); await p.waitForSelector(".hero");
     await p.click(sel);
     await p.waitForTimeout(100);
     assert.ok(await p.$("#ov .card h1"), sel + " opened a screen");
   }
+  assert.deepEqual(p.errors, []);
+});
+
+test("a new player who waits on one ticket gets told to fire the next", { skip }, async () => {
+  const p = await page();
+  await p.click(".hint [data-act=practice]");
+  await p.click("[data-act=mode][data-i='0']");
+  const said = await p.evaluate(() => {
+    const P = window.__pass; P.headless(true); const G = P.state();
+    while (G.tickets.length < 1) P.update(0.05);
+    G.tickets[0].dishes.forEach((d) => P.fire(d));
+    while (G.tickets.length < 2) P.update(0.05);
+    for (let i = 0; i < 200; i++) P.update(0.05);
+    return document.querySelector("#bubble").textContent;
+  });
+  assert.match(said, /Don't wait, chef/);
   assert.deepEqual(p.errors, []);
 });

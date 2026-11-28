@@ -723,6 +723,7 @@ function update(dt){
     if(age>t.parC*2.2) walkout(t);
   }
   helpTick();
+  newbieNudge();
   G.sat=Math.max(0,G.sat-.06*overdue*dt);
   for(let i=0;i<G.runners.length;i++) if(G.runners[i]>0) G.runners[i]=Math.max(0,G.runners[i]-dt);
   if(G.over) return;
@@ -734,6 +735,18 @@ function update(dt){
 /* ---------- larder helping out ----------
    The starters chef with nothing on can jump on a section that's buried. Two goes a service (Practice for now).
    While they're away, nothing new can go on larder. */
+/* New players often fire one ticket and wait for it (Sarah did). For their first few services the head chef
+   tells them, at most twice, if a fresh ticket sits untouched while another one cooks. Words only, no score change. */
+function newbieNudge(){
+  if(G.kind==='stage' || save.played>=4 || (G.nudges||0)>=2 || G.t<(G.nudgeAt||0)) return;
+  const open=openTickets();
+  const idle=open.find(t=>G.t-t.born>6 && t.dishes.every(d=>d.state==='unfired'));
+  const busy=open.some(t=>t.dishes.some(d=>d.state==='cooking'));
+  if(idle && busy){
+    say('HEAD CHEF','Don\'t wait, chef. Fire table '+idle.table+' while that one cooks.');
+    G.nudges=(G.nudges||0)+1; G.nudgeAt=G.t+25;
+  }
+}
 function helpTick(){
   if(G.help && G.t>=G.help.until){ say('larder','Back on larder, chef!'); G.help=null; }
   if(!G.helps || G.help || G.stn.larder.length || G.t<G.helpHint) return;
@@ -793,18 +806,25 @@ function stageTick(dt){
 const ticketOf = d => G.tmap[d.tid];
 const byAbbr = (t,a) => t.dishes.find(d=>d.abbr===a);
 const STAGES = [
-  {name:'Read the ticket', sub:'Fire it, watch it, send it.',
+  {name:'Read the ticket', sub:'Fire it, watch it, send it. Then do two at once.',
    intro:['Right. You\'re on the pass with me tonight.','Hear that printer? That\'s a ticket.'],
-   tickets:[{at:3, covers:2, dishes:['BGR','DCK']}],
+   tickets:[{at:3, covers:2, dishes:['BGR','DCK']},{at:10, covers:2, dishes:['BAS','BAS']}],
    on:{
-     spawn(t){ coach('Table '+t.table+', two covers. Burger and a duck. Tap each one to fire it.',true); },
-     fire(d,t){ const n=t.dishes.filter(x=>x.state!=='unfired').length;
-       if(n===1) coach('Heard. Now the other one.',true);
-       else coach('Both away. Red edge is grill, gold is pan. Now we wait.',true); },
+     spawn(t){
+       G.sv.n=(G.sv.n||0)+1;
+       if(G.sv.n===1) coach('Table '+t.table+', two covers. Burger and a duck. Tap each one to fire it.',true);
+       else coach('Another ticket. Don\'t wait for the first one. Fire it now. Busy is the job.',true);
+     },
+     fire(d,t){
+       const first=G.tickets[0]===t, n=t.dishes.filter(x=>x.state!=='unfired').length;
+       if(first && n===1) coach('Heard. Now the other one.',true);
+       else if(first) coach('Both away. Red edge is grill, gold is pan.',true);
+       else if(n===t.dishes.length) coach('That\'s it. Two tables cooking at once. That\'s the whole game.',true);
+     },
      plate(d){ if(!G.sv.p){ G.sv.p=1; coach('Plate\'s up. It starts dying the second it lands. Watch the ring.',true); } },
-     ready(){ coach('Whole table\'s up. Green SEND button. Hit it.',true); }
+     ready(t){ coach('Table '+t.table+'\'s up. Green SEND. Hit it.',true); }
    },
-   verdict(r){ return r>=80?'Clean. That\'s the job: fire, watch, send.' : 'Out the door. Don\'t let plates sit in the window.'; }},
+   verdict(r){ return r>=80?'Clean. Fire everything you can, watch, send. That\'s the job.' : 'Out the door. Don\'t let plates sit in the window, and never wait to fire the next ticket.'; }},
 
   {name:'Long cooks first', sub:'Fire in the right order so it all lands together.',
    intro:['Different dishes, different cook times.','Read the whole ticket before you touch it.'],
@@ -1045,7 +1065,8 @@ function startScreen(){
   }
   const sk=currentStreak();
   h+='<div class="stats">'+(sk?'Daily streak '+sk+' day'+(sk>1?'s':'')+' · ':'')+(NET.token?'Signed in as '+esc(NET.name):'Playing as a guest')+'</div>';
-  h+='<div class="links" style="margin-top:14px"><button data-act="practice">PRACTICE</button><button data-act="stats">STATS</button><button data-act="account">'+(NET.token?'ACCOUNT':'SIGN IN')+'</button>'+(CHARITY.enabled?'<button data-act="charity">SUPPORT</button>':'')+'</div>';
+  h+='<div class="links" style="margin-top:14px"><button data-act="stats">STATS</button><button data-act="account">'+(NET.token?'ACCOUNT':'SIGN IN')+'</button>'+(CHARITY.enabled?'<button data-act="charity">SUPPORT</button>':'')+'</div>';
+  h+='<div class="hint" style="margin-top:14px"><a href="#" data-act="practice" style="color:#555;font-weight:600">Practice &amp; the Stage →</a></div>';
   h+='</div>';
   showOverlay(h);
 }
@@ -1065,7 +1086,8 @@ function dailyBrief(){
   const info=dailyInfo(todayUtc());
   let h='<div class="card"><h1>DAILY</h1><div class="sub">'+dnum(info.number)+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
   h+='<div class="verdict">'+info.title+'.</div>';
-  h+='<div class="prose"><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
+  h+='<div class="prose"><p><b>How it works</b></p><p>1. Tap a dish to fire it. <b>Fire as many tickets at once as you can handle.</b> Don\'t wait for one to finish.</p><p>2. Cooked plates land in the window and start cooling straight away.</p><p>3. When a table\'s up, hit <b>SEND</b>. Hot food and quick tables score.</p>';
+  h+='<div class="rule"></div><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
   h+='<p>Then share your card and see how everyone else got on.</p>';
   h+=NET.token ? '<p>Signed in as <b>'+esc(NET.name)+'</b>, so your streak and stats follow you to any device.</p>' : '<p>Your streak and stats are kept on this phone. <a href="#" data-act="account">Sign in</a> if you want them on every device.</p>';
   h+='</div><button class="go" data-act="dailygo">START THE SERVICE</button><button class="go alt" data-act="home">NOT YET</button></div>';
