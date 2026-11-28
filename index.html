@@ -1017,7 +1017,7 @@ function statusText(d){
   switch(d.state){
     case 'unfired': return d.hold ? 'HOLD '+d.base+'s' : (d.refire?'REFIRE ':'FIRE ')+d.base+'s';
     case 'cooking': return 'cooking...';
-    case 'plated': return (d.sel?'':'HELD ')+Math.round(d.q)+'%';
+    case 'plated': return Math.round(d.q)+'%';
     case 'sent': return 'sent';
     default: return '';
   }
@@ -1057,7 +1057,7 @@ function render(){
     t.ui.card.className='tk'+(G.sel===t.id?' sel':'')+(age>t.parC?' over':'');
     if(t.ui.mains){ const mt=t.course===2?'MAINS · AWAY':eating(t)?'MAINS · ON HOLD, EATING STARTERS':'MAINS · ON HOLD'; if(t.ui.mtx!==mt){ t.ui.mains.textContent=mt; t.ui.mtx=mt; t.ui.mains.className='crs'+(t.course===2?' away':''); } }
     t.dishes.forEach(d=>{
-      d.ui.chip.className='chip '+d.key+' s-'+d.state+(d.hold?' hold':'')+(d.dead?' dead':'')+(d.mods.allergy?' alg':'')+(d.state==='plated'&&!d.sel&&!d.dead?' held':'');
+      d.ui.chip.className='chip '+d.key+' s-'+d.state+(d.hold?' hold':'')+(d.dead?' dead':'')+(d.mods.allergy?' alg':'');
       const tx=statusText(d); if(d.ui.cstx!==tx){ d.ui.cs.textContent=tx; d.ui.cstx=tx; }
     });
     const pl=readyPlates(t), rem=remainingOf(t);
@@ -1075,7 +1075,7 @@ function render(){
       if(inWin){
         d.ui.ring.style.strokeDashoffset=(94.25*(1-d.q/100)).toFixed(1);
         d.ui.ring.style.stroke='hsl('+Math.round(d.q*1.2)+',70%,52%)';
-        d.ui.plate.className='plate'+(G.sel===t.id&&d.sel?' sel':'')+(!d.sel?' off':'')+(d.dead?' dead':d.q<40?' dying':'');
+        d.ui.plate.className='plate'+(G.sel===t.id?' sel':'')+(d.dead?' dead':d.q<40?' dying':'');
       }
     }
   }
@@ -1429,7 +1429,6 @@ boardEl.addEventListener('click',e=>{
     if(d.state==='unfired') fireDish(d);
     else if(d.state==='cooking') checkDish(d);
     else if(d.dead) binDish(d);
-    else if(d.state==='plated'){ d.sel=!d.sel; A.tap(); }
     return;
   }
   const c=e.target.closest('.tk'); if(c) selectTicket(+c.dataset.tid);
@@ -1439,12 +1438,9 @@ winEl.addEventListener('click',e=>{
   const p=e.target.closest('.plate'); if(!p) return;
   const d=G.dmap[+p.dataset.did]; if(!d) return;
   if(d.dead){ binDish(d); return; }
-  if(d.tid!==G.sel){
-    selectTicket(d.tid);
-    const t=G.tmap[d.tid]; if(t&&t.ui.card&&t.ui.card.scrollIntoView) t.ui.card.scrollIntoView({block:'nearest',behavior:'smooth'});
-    return;
-  }
-  d.sel=!d.sel; A.tap();
+  // Tapping a plate jumps to its ticket. Plates can't be held back: every ready plate goes when you send.
+  selectTicket(d.tid);
+  const t=G.tmap[d.tid]; if(t&&t.ui.card&&t.ui.card.scrollIntoView) t.ui.card.scrollIntoView({block:'nearest',behavior:'smooth'});
 });
 brigadeEl.addEventListener('click',e=>{ const c=e.target.closest('.stn'); if(c) sendHelp(c.dataset.k); });
 $('#btnMute').addEventListener('click',()=>{ A.muted=!A.muted; save.muted=A.muted; writeSave(); setMuteIcon(); A.unlock(); Online.syncSoon(); });

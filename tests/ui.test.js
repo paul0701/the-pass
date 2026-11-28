@@ -149,3 +149,21 @@ test("leaving the daily early never scores better than playing on badly", { skip
   });
   assert.ok(out.early <= out.full, JSON.stringify(out));
 });
+
+test("plates can't be held back: tapping a ready plate never turns SEND into SPLIT", { skip }, async () => {
+  const p = await page();
+  await p.click(".hint [data-act=practice]");
+  await p.click("[data-act=mode][data-i='0']");
+  const out = await p.evaluate(() => {
+    const P = window.__pass; P.headless(true); const G = P.state();
+    while (!G.tickets.length) P.update(0.05);
+    const t = G.tickets[0]; t.dishes.forEach((d) => P.fire(d));
+    while (!t.dishes.every((d) => d.state === "plated")) P.update(0.05);
+    P.render();
+    t.dishes.forEach((d) => { d.ui.chip.click(); d.ui.plate.click(); });
+    P.render();
+    return t.ui.send.textContent;
+  });
+  assert.equal(out, "SEND");
+  assert.deepEqual(p.errors, []);
+});
