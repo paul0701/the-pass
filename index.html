@@ -186,6 +186,57 @@ button{font-family:inherit;color:inherit}
 .small{font-size:10.5px;color:#777}
 .verdict{font:600 15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-align:center;margin:10px 4px;color:#1d1d1d}
 .ov.solid{background:#0a0c0e}
+#intro{position:absolute;inset:0;z-index:30;background:#121417;overflow:hidden;transition:opacity .4s}
+#intro.out{opacity:0}
+#intro svg{position:absolute;inset:0;width:100%;height:100%}
+#intro.paused *{animation-play-state:paused!important}
+#intro .cap{position:absolute;left:0;right:0;bottom:15%;text-align:center;font:700 15px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.18em;color:#ffcf7a;opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s;padding:0 16px}
+#intro .cap.on{opacity:1;transform:none}
+#intro .ititle{position:absolute;left:0;right:0;bottom:13%;text-align:center;font:800 42px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.3em;padding-left:.3em;color:#f6f4ee;opacity:0;text-shadow:0 4px 20px #000}
+#intro .ititle.slam{animation:islam .35s cubic-bezier(.2,1.6,.4,1) forwards}
+@keyframes islam{from{opacity:0;transform:scale(1.8)}to{opacity:1;transform:scale(1)}}
+#intro .iskip{position:absolute;top:calc(env(safe-area-inset-top) + 10px);right:10px;z-index:2;background:#0008;color:#f6f4ee;border:1px solid #ffffff44;border-radius:16px;padding:6px 12px;font:700 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.1em;cursor:pointer}
+#intro .gate{position:absolute;inset:0;z-index:3;background:#0a0c0ecc;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;color:#f6f4ee}
+#intro .gate h1{margin:0;font:800 36px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.3em;padding-left:.3em}
+#intro .gate .gsub{font-size:13px;opacity:.85}
+#intro .gate .go{max-width:300px}
+.ki-flame{transform-box:fill-box;transform-origin:50% 100%;animation:kflick .16s infinite alternate}
+@keyframes kflick{to{transform:scaleY(1.35) scaleX(.85);opacity:.7}}
+.ki-steak{transform-box:fill-box;transform-origin:50% 50%;animation:kflip 1.6s infinite}
+@keyframes kflip{0%,55%{transform:translateY(0) rotate(0)}70%{transform:translateY(-40px) rotate(180deg)}85%,100%{transform:translateY(0) rotate(360deg)}}
+.ki-arm-flip{animation:karmflip 1.6s infinite}
+@keyframes karmflip{0%,50%{transform:rotate(0)}62%{transform:rotate(-28deg)}80%,100%{transform:rotate(0)}}
+.ki-pan{animation:ktoss 1.1s infinite}
+@keyframes ktoss{0%,40%,100%{transform:rotate(0)}55%{transform:rotate(-14deg) translateY(-5px)}72%{transform:rotate(4deg)}}
+.ki-arm-toss{animation:karmtoss 1.1s infinite}
+@keyframes karmtoss{0%,40%,100%{transform:rotate(0)}55%{transform:rotate(-16deg)}72%{transform:rotate(4deg)}}
+.ki-bit{transform-box:fill-box;animation:kbit 1.1s infinite}
+@keyframes kbit{0%,45%{transform:translate(0,0)}62%{transform:translate(var(--dx),-30px)}80%,100%{transform:translate(0,0)}}
+.ki-flare{transform-box:fill-box;animation:kflare 2.2s infinite}
+@keyframes kflare{0%,52%,100%{opacity:0;transform:scaleY(.4)}58%{opacity:.95;transform:scaleY(1.1)}74%{opacity:0;transform:scaleY(.8)}}
+.ki-arm-plateL{animation:kplate .9s infinite ease-in-out}
+.ki-arm-plateR{animation:kplate .9s infinite ease-in-out reverse}
+@keyframes kplate{50%{transform:rotate(-10deg)}}
+.ki-basket{animation:kdip 2s infinite}
+.ki-arm-lift{animation:klift 2s infinite}
+@keyframes kdip{0%,40%,90%,100%{transform:translateY(0)}52%,80%{transform:translateY(-22px)}}
+@keyframes klift{0%,40%,90%,100%{transform:rotate(0)}52%,80%{transform:rotate(-22deg)}}
+.ki-bub{transform-box:fill-box;transform-origin:50% 50%;animation:kbub .9s infinite}
+@keyframes kbub{0%{transform:scale(.4);opacity:0}50%{opacity:1}100%{transform:scale(1.3) translateY(-3px);opacity:0}}
+.ki-steam{transform-box:fill-box;transform-origin:50% 50%;animation:ksteam 2.4s infinite linear;opacity:0}
+@keyframes ksteam{0%{transform:translateY(0) scale(.5);opacity:0}25%{opacity:.16}100%{transform:translateY(-70px) scale(1.6);opacity:0}}
+.ki-tk{animation:ksway 2.6s infinite ease-in-out}
+@keyframes ksway{50%{transform:rotate(3deg)}}
+.ki-bob{animation:kbob 1.3s infinite ease-in-out}
+@keyframes kbob{50%{transform:translateY(1.5px)}}
+.ki-lamp{animation:klamp 3s infinite ease-in-out}
+@keyframes klamp{50%{opacity:.7}}
+.ki-plate{animation:kplatein .5s both;transform-box:fill-box}
+@keyframes kplatein{from{transform:translateX(-30px);opacity:0}}
+.ki-print{transform-box:fill-box;transform-origin:50% 100%;transform:scaleY(0)}
+.ki-print.go{animation:kprint .6s steps(8) forwards}
+@keyframes kprint{to{transform:scaleY(1)}}
+@media (prefers-reduced-motion:reduce){#intro svg *{animation:none!important}.ki-print{transform:none}}
 </style>
 </head>
 <body>
@@ -332,7 +383,7 @@ const seeded = key => mulberry32(hashSeed(key));
 const rng = key => seeded(G.seed+'|'+key);
 
 /* ---------- persistence ---------- */
-let save = {best:[0,0,0], streak:0, unlocked:0, muted:false, played:0, seen:false, stage:0, daily:null, dstreak:null, dstats:null};
+let save = {best:[0,0,0], streak:0, unlocked:0, muted:false, played:0, seen:false, seenIntro:false, stage:0, daily:null, dstreak:null, dstats:null};
 function loadSave(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); if(s&&typeof s==='object') save=Object.assign(save,s); }catch(e){} }
 function writeSave(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(save)); }catch(e){} }
 const progressOf = () => ({best:save.best, streak:save.streak, unlocked:save.unlocked, played:save.played, stage:save.stage, muted:save.muted, seen:save.seen});
@@ -1079,7 +1130,7 @@ function practiceMenu(){
     h+='<button class="mode'+(locked?' locked':'')+'" data-act="mode" data-i="'+i+'"><b>'+m.name+(save.best[i]?' · best '+save.best[i]+'%':'')+'</b><small>'+(locked?'Locked: '+m.need:m.sub)+'</small></button>';
   });
   h+='</div><div class="stats" style="margin:0 0 10px">When the larder chef is free, tap a buried section and they\'ll jump on it.</div>';
-  h+='<button class="go alt" data-act="home">BACK</button><div class="stats">Longest table streak '+save.streak+' · Services run '+save.played+'</div></div>';
+  h+='<button class="go alt" data-act="home">BACK</button><div class="stats">Longest table streak '+save.streak+' · Services run '+save.played+' · <a href="#" data-act="intro" style="color:#555">Watch the intro</a></div></div>';
   showOverlay(h);
 }
 function dailyBrief(){
@@ -1349,6 +1400,7 @@ ovEl.addEventListener('click',e=>{
   const a=b.dataset.act;
   if(a==='mode'){ const i=+b.dataset.i; if(i<=save.unlocked){ chosenMode=i; newGame(i,{kind:'practice'}); } }
   else if(a==='practice'){ practiceMenu(); }
+  else if(a==='intro'){ startScreen(); Intro.show(false); }
   else if(a==='start'){ newGame(chosenMode,{kind:'practice'}); }
   else if(a==='resume'){ G.paused=false; hideOverlay(); }
   else if(a==='quit'){ if(G&&G.kind==='daily'&&!G.over){ endGame('left'); } else { if(G) G.over=true; startScreen(); } }
@@ -1398,6 +1450,133 @@ function fitBadge(){
 new MutationObserver(fitBadge).observe(document.body,{childList:true});
 addEventListener('resize',fitBadge);
 [500,1500,4000,8000].forEach(ms=>setTimeout(fitBadge,ms));
+
+/* ---------- the intro: a busy kitchen before service ----------
+   The line from the pass: grill, pan, larder and fryer, a chef on each, all drawn and animated in code.
+   First visit shows a "tap to start" gate (phones only allow sound after a tap), then about seven seconds of
+   kitchen, then the start screen, which is already underneath. Any error just removes the intro. */
+const INTRO_LINES = ['Sunday roast. Full book.','Monday. Quiet, they said.','Tuesday. Steady.','Midweek. Busier than it should be.','Thursday. It\'s building.','Friday. Full book.','Saturday. Every table, twice.'];
+function introSvg(){
+  const steel='url(#kSteel)';
+  const chef=(cx,skin,hat,apron,armL,armR)=>{
+    let g='<g>';
+    g+='<path d="M'+(cx-24)+' 352 L'+(cx-26)+' 272 Q'+cx+' 258 '+(cx+26)+' 272 L'+(cx+24)+' 352 Z" fill="#f4f2ec" stroke="#d3cfc5"/>';
+    g+='<path d="M'+(cx-8)+' 262 L'+cx+' 276 L'+(cx+8)+' 262" fill="none" stroke="#d3cfc5" stroke-width="2"/>';
+    [284,298,312].forEach(y=>{ g+='<circle cx="'+(cx-7)+'" cy="'+y+'" r="1.6" fill="#b9b5ab"/><circle cx="'+(cx+7)+'" cy="'+y+'" r="1.6" fill="#b9b5ab"/>'; });
+    g+='<rect x="'+(cx-20)+'" y="318" width="40" height="34" fill="'+apron+'"/>';
+    g+='<g class="ki-bob"><rect x="'+(cx-5)+'" y="252" width="10" height="10" fill="'+skin+'"/><circle cx="'+cx+'" cy="242" r="14" fill="'+skin+'"/>';
+    g+='<circle cx="'+(cx-5)+'" cy="243" r="1.6" fill="#1d1d1d"/><circle cx="'+(cx+5)+'" cy="243" r="1.6" fill="#1d1d1d"/>';
+    if(hat==='toque') g+='<rect x="'+(cx-12)+'" y="214" width="24" height="20" fill="#fff"/><circle cx="'+(cx-8)+'" cy="214" r="8" fill="#fff"/><circle cx="'+(cx+8)+'" cy="214" r="8" fill="#fff"/><circle cx="'+cx+'" cy="210" r="9" fill="#fff"/>';
+    else if(hat==='cap') g+='<path d="M'+(cx-15)+' 238 Q'+cx+' 214 '+(cx+15)+' 238 Z" fill="#fff"/>';
+    else g+='<path d="M'+(cx-15)+' 238 Q'+cx+' 216 '+(cx+15)+' 238 Z" fill="'+hat+'"/><path d="M'+(cx+13)+' 236 l9 4 l-8 2 Z" fill="'+hat+'"/>';
+    g+='</g>';
+    const arm=(x,cls,ox)=>'<g class="'+cls+'" style="transform-origin:'+ox+'px 274px"><rect x="'+x+'" y="270" width="10" height="66" rx="5" fill="#f4f2ec" stroke="#d3cfc5"/><circle cx="'+(x+5)+'" cy="338" r="5.5" fill="'+skin+'"/></g>';
+    g+=arm(cx-31,armL,cx-26)+arm(cx+21,armR,cx+26);
+    return g+'</g>';
+  };
+  let s='<svg viewBox="0 0 400 720" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><defs>';
+  s+='<linearGradient id="kSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7dde2"/><stop offset="1" stop-color="#7d868e"/></linearGradient>';
+  s+='<linearGradient id="kWall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d434b"/><stop offset="1" stop-color="#23272c"/></linearGradient>';
+  s+='<radialGradient id="kGlow" cx=".5" cy="0" r="1"><stop offset="0" stop-color="#ffb347" stop-opacity=".55"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>';
+  s+='<pattern id="kTile" width="26" height="13" patternUnits="userSpaceOnUse"><rect width="26" height="13" fill="none" stroke="#ffffff12"/></pattern></defs>';
+  s+='<rect width="400" height="720" fill="url(#kWall)"/><rect x="0" y="100" width="400" height="252" fill="url(#kTile)"/>';
+  // canopy, lights and the ticket rail
+  s+='<path d="M0 34 L400 34 L382 100 L18 100 Z" fill="'+steel+'"/>';
+  for(let x=40;x<370;x+=24) s+='<rect x="'+x+'" y="52" width="14" height="30" rx="2" fill="#00000022"/>';
+  s+='<rect x="18" y="100" width="364" height="5" fill="#ffe2a8"/><rect x="18" y="105" width="364" height="90" fill="url(#kGlow)"/>';
+  s+='<rect x="26" y="114" width="348" height="4" rx="2" fill="#9aa3ab"/>';
+  [44,86,140,198,252,318].forEach((x,i)=>{ s+='<g class="ki-tk" style="transform-origin:'+(x+11)+'px 116px;animation-delay:-'+(i*.4)+'s"><rect x="'+x+'" y="116" width="22" height="'+(30+i%3*6)+'" fill="#f6f4ee"/><rect x="'+(x+4)+'" y="122" width="14" height="3" fill="#c0392b"/><rect x="'+(x+4)+'" y="129" width="12" height="2" fill="#777"/><rect x="'+(x+4)+'" y="134" width="9" height="2" fill="#777"/></g>'; });
+  // the brigade
+  s+=chef(65,'#e0ac86','cap','#2b3a4a','ki-arm-still','ki-arm-flip');
+  s+=chef(155,'#8d5a3b','toque','#3b3b3b','ki-arm-still','ki-arm-toss');
+  s+=chef(245,'#f1c9a5','#2e6b4f','#5a4630','ki-arm-plateL','ki-arm-plateR');
+  s+=chef(335,'#c68a62','cap','#2b3a4a','ki-arm-still','ki-arm-lift');
+  // grill
+  s+='<rect x="30" y="342" width="72" height="12" fill="#1b1d20"/>';
+  [36,48,60,72,84].forEach((x,i)=>{ s+='<path class="ki-flame" style="animation-delay:-'+(i*.07)+'s" d="M'+x+' 344 q4 -12 8 0 Z" fill="'+(i%2?'#ffb347':'#ff6a2b')+'"/>'; });
+  s+='<rect class="ki-steak" x="52" y="330" width="28" height="10" rx="4" fill="#7a3b22"/>';
+  // pan: hob flame, the pan, the food in it, and the flare when it's tossed
+  [138,148,158,168].forEach((x,i)=>{ s+='<path class="ki-flame" style="animation-delay:-'+(i*.05)+'s" d="M'+x+' 352 q3 -8 6 0 Z" fill="#5aa0ff"/>'; });
+  s+='<path class="ki-flare" style="transform-origin:152px 336px" d="M134 336 Q140 300 152 296 Q148 316 160 306 Q170 300 168 336 Z" fill="#ff8a2b" opacity="0"/>';
+  s+='<g class="ki-pan" style="transform-origin:196px 341px"><ellipse cx="152" cy="342" rx="25" ry="6" fill="#2a2d31"/><ellipse cx="152" cy="340" rx="21" ry="4" fill="#3b3f44"/><rect x="175" y="339" width="24" height="4" rx="2" fill="#2a2d31"/>';
+  [[143,'#d9a441',-6],[151,'#6aa84f',4],[159,'#c0392b',10]].forEach(b=>{ s+='<circle class="ki-bit" style="--dx:'+b[2]+'px" cx="'+b[0]+'" cy="337" r="3" fill="'+b[1]+'"/>'; });
+  s+='</g>';
+  // larder: board and plates
+  s+='<rect x="214" y="344" width="62" height="9" rx="2" fill="#c8a46b"/>';
+  s+='<ellipse cx="229" cy="343" rx="12" ry="4" fill="#fff"/><circle cx="226" cy="341" r="2.5" fill="#6aa84f"/><circle cx="231" cy="341" r="2.5" fill="#8bc34a"/><circle cx="229" cy="339" r="1.8" fill="#c0392b"/>';
+  s+='<ellipse cx="261" cy="343" rx="12" ry="4" fill="#fff"/><circle cx="258" cy="341" r="2.5" fill="#f3e3c3"/><circle cx="263" cy="341" r="2" fill="#e57373"/>';
+  // fryer: the box, the oil, bubbles, and the basket going up and down
+  s+='<rect x="303" y="334" width="64" height="20" fill="#444a50"/><rect x="308" y="336" width="54" height="6" fill="#c08a2a"/>';
+  [316,330,344,354].forEach((x,i)=>{ s+='<circle class="ki-bub" style="animation-delay:-'+(i*.3)+'s" cx="'+x+'" cy="339" r="2" fill="#ffd27a"/>'; });
+  s+='<g class="ki-basket"><rect x="318" y="324" width="34" height="14" fill="none" stroke="#c9cdd1" stroke-width="2"/><path d="M322 328 h26 M322 333 h26" stroke="#c9cdd1"/><rect x="333" y="318" width="20" height="3" fill="#2a2d31"/><rect x="326" y="326" width="18" height="8" fill="#e0a23a"/></g>';
+  // steam
+  [[66,320,0],[150,318,-.8],[160,322,-1.6],[332,318,-.4],[344,320,-1.2],[240,324,-2]].forEach(p=>{ s+='<circle class="ki-steam" style="animation-delay:'+p[2]+'s" cx="'+p[0]+'" cy="'+p[1]+'" r="8" fill="#ffffff"/>'; });
+  // counter front with the section names
+  s+='<rect x="0" y="352" width="400" height="14" fill="'+steel+'"/><rect x="0" y="366" width="400" height="130" fill="#545b63"/>';
+  [100,190,280].forEach(x=>{ s+='<rect x="'+x+'" y="366" width="2" height="130" fill="#3e444a"/>'; });
+  [['GRILL',65],['PAN',155],['LARDER',245],['FRYER',335]].forEach(l=>{ s+='<text x="'+l[1]+'" y="392" text-anchor="middle" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="11" font-weight="700" letter-spacing="2" fill="#ffffff55">'+l[0]+'</text>'; });
+  // the pass in front: lamp, glow, plates arriving, the printer
+  s+='<rect x="0" y="496" width="400" height="10" fill="#1b1e22"/><rect class="ki-lamp" x="0" y="506" width="400" height="40" fill="url(#kGlow)"/>';
+  [30,110,190,270].forEach(x=>{ s+='<rect x="'+x+'" y="500" width="60" height="3" rx="1.5" fill="#ffcf7a"/>'; });
+  s+='<rect x="0" y="540" width="400" height="16" fill="'+steel+'"/>';
+  [[60,0],[120,.5],[180,1]].forEach(p=>{ s+='<g class="ki-plate" style="animation-delay:'+p[1]+'s"><ellipse cx="'+p[0]+'" cy="540" rx="22" ry="6" fill="#fff"/><ellipse cx="'+p[0]+'" cy="538" rx="10" ry="3.5" fill="#7a3b22"/></g>'; });
+  s+='<rect x="324" y="520" width="56" height="22" rx="3" fill="#2a2d31"/><rect x="332" y="519" width="40" height="3" fill="#111"/>';
+  s+='<g class="ki-print"><rect x="340" y="458" width="24" height="62" fill="#f6f4ee"/><rect x="344" y="464" width="16" height="3" fill="#c0392b"/><rect x="344" y="472" width="14" height="2" fill="#777"/><rect x="344" y="478" width="11" height="2" fill="#777"/><rect x="344" y="484" width="15" height="2" fill="#777"/></g>';
+  s+='<rect x="0" y="556" width="400" height="164" fill="#121417"/>';
+  return s+'</svg>';
+}
+const Intro = (function(){
+  let root=null, timers=[], stopAmb=null, done=false;
+  function ambient(){
+    if(!A.ok()) return null;
+    try{
+      const c=A.ctx, nodes=[];
+      const loop=(type,f,q,g)=>{ const src=c.createBufferSource(); src.buffer=A.nb; src.loop=true; const fl=c.createBiquadFilter(); fl.type=type; fl.frequency.value=f; fl.Q.value=q; const gn=c.createGain(); gn.gain.setValueAtTime(.0001,c.currentTime); gn.gain.exponentialRampToValueAtTime(g,c.currentTime+.6); src.connect(fl); fl.connect(gn); gn.connect(A.master); src.start(); nodes.push([src,gn]); };
+      loop('lowpass',170,.7,.12);    // extraction
+      loop('bandpass',5200,.7,.03);  // sizzle
+      const clat=setInterval(()=>{ if(Math.random()<.7) A.tone(0,900+Math.random()*1400,.09,{type:'triangle',g:.025}); if(Math.random()<.35) A.swipe(); },420);
+      return ()=>{ clearInterval(clat); nodes.forEach(n=>{ try{ n[1].gain.exponentialRampToValueAtTime(.0001,c.currentTime+.4); n[0].stop(c.currentTime+.45); }catch(e){} }); };
+    }catch(e){ return null; }
+  }
+  function cap(t){ const c=root.querySelector('.cap'); c.classList.remove('on'); void c.offsetWidth; c.textContent=t; c.classList.add('on'); }
+  function finish(){
+    if(done) return; done=true;
+    timers.forEach(clearTimeout); timers=[];
+    if(stopAmb){ stopAmb(); stopAmb=null; }
+    save.seenIntro=true; writeSave();
+    if(root){ const r=root; r.classList.add('out'); setTimeout(()=>{ r.remove(); },420); root=null; }
+  }
+  function run(){
+    root.classList.remove('paused');
+    const g=root.querySelector('.gate'); if(g) g.remove();
+    A.unlock();
+    const info=dailyInfo(todayUtc());
+    const at=(ms,fn)=>timers.push(setTimeout(()=>{ try{ if(!done) fn(); }catch(e){ finish(); } },ms));
+    at(150,()=>{ stopAmb=ambient(); });
+    at(400,()=>cap(info.name.toUpperCase()+' · 17:58'));
+    at(2000,()=>cap(INTRO_LINES[info.dow]));
+    at(3500,()=>{ cap('First ticket\'s in.'); root.querySelector('.ki-print').classList.add('go'); A.printer(); });
+    at(4900,()=>{ root.querySelector('.cap').classList.remove('on'); root.querySelector('.ititle').classList.add('slam'); A.bell(); A.spike(); });
+    at(6900,finish);
+    root.addEventListener('click',e=>{ if(!e.target.closest('.gate')) finish(); });
+  }
+  function show(gate){
+    try{
+      if(root) return;
+      done=false;
+      root=el('div','',document.getElementById('app')); root.id='intro';
+      root.innerHTML=introSvg()+'<div class="ititle">THE PASS</div><div class="cap"></div><button class="iskip" aria-label="Skip">SKIP ›</button>';
+      root.querySelector('.iskip').addEventListener('click',e=>{ e.stopPropagation(); finish(); });
+      if(gate){
+        root.classList.add('paused');
+        const g=el('div','gate',root);
+        g.innerHTML='<h1>THE PASS</h1><div class="gsub">Head chef. Tonight\'s service.</div><button class="go" type="button">TAP TO START SERVICE</button><div class="gsub" style="font-size:11px;opacity:.6">Sound on, if you can.</div>';
+        g.querySelector('button').addEventListener('click',e=>{ e.stopPropagation(); run(); });
+      } else run();
+    }catch(e){ finish(); }
+  }
+  return {show, finish};
+})();
 
 /* ---------- boot ---------- */
 loadSave(); A.muted=!!save.muted; setMuteIcon(); buildBrigade();
@@ -1494,11 +1673,12 @@ const Online = (function(){
 
 requestAnimationFrame(frame);
 startScreen();
+if(!save.seenIntro) Intro.show(true);
 Online.refresh();
 
 /* handles for testing */
 window.__pass = {newGame,update,render,state:()=>G,fire:fireDish,check:checkDish,select:selectTicket,send:sendSel,sendTicket,bin:binDish,endGame,save:()=>save,A,
-  headless(on){ headless=!!on; }, help:sendHelp, receiptCanvas, DAYS, LAUNCH, DAILY_DURATION, dailyInfo, STAGES, shareText, seeded};
+  headless(on){ headless=!!on; }, help:sendHelp, Intro, receiptCanvas, DAYS, LAUNCH, DAILY_DURATION, dailyInfo, STAGES, shareText, seeded};
 
 if('serviceWorker' in navigator && /^https?:/.test(location.protocol)){
   window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });

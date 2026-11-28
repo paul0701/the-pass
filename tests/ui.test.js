@@ -14,10 +14,11 @@ let browser;
 before(async () => { if (pw) browser = await pw.chromium.launch(); });
 after(async () => { if (browser) await browser.close(); });
 
-async function page() {
+async function page(fresh) {
   const p = await (await browser.newContext({ ...pw.devices["Pixel 7"] })).newPage();
   p.errors = [];
   p.on("pageerror", (e) => p.errors.push(e.message));
+  if (!fresh) await p.addInitScript(() => { if (!localStorage.getItem("thepass.save.v1")) localStorage.setItem("thepass.save.v1", JSON.stringify({ seenIntro: true })); });
   await p.goto(url);
   await p.waitForSelector(".hero");
   return p;
@@ -73,5 +74,30 @@ test("a new player who waits on one ticket gets told to fire the next", { skip }
     return document.querySelector("#bubble").textContent;
   });
   assert.match(said, /Don't wait, chef/);
+  assert.deepEqual(p.errors, []);
+});
+
+test("first visit: tap to start, the kitchen intro plays, then the start screen", { skip }, async () => {
+  const p = await page(true);
+  assert.ok(await p.$("#intro .gate"), "a first-time visitor sees the tap to start gate");
+  await p.click("#intro .gate button");
+  await p.waitForTimeout(600);
+  assert.ok(await p.$("#intro"), "the intro is playing");
+  assert.equal(await p.$("#intro .gate"), null);
+  await p.waitForSelector("#intro", { state: "detached", timeout: 9000 });
+  assert.ok(await p.$(".hero"), "start screen underneath");
+  await p.reload();
+  await p.waitForSelector(".hero");
+  assert.equal(await p.$("#intro"), null, "the intro only plays once");
+  assert.deepEqual(p.errors, []);
+});
+
+test("the intro can be skipped", { skip }, async () => {
+  const p = await page(true);
+  await p.click("#intro .gate button");
+  await p.click("#intro .iskip");
+  await p.waitForSelector("#intro", { state: "detached", timeout: 2000 });
+  await p.click(".hero [data-act=dailybrief]");
+  assert.ok(await p.$("[data-act=dailygo]"));
   assert.deepEqual(p.errors, []);
 });
