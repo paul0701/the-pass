@@ -4,7 +4,7 @@ import { json, handle, readJson, requireMethod, HttpError } from "../lib/http.js
 import { loadRecord, createRecord, updateRecord } from "../lib/store.js";
 import { validateName, cleanName, chefId, suggestNames } from "../lib/names.js";
 import { pinProblem } from "../../shared/pin.js";
-import { PIN_RE, makeSecret, verifySecret, assertNotLocked, registerFailure, issueSession, parseToken, revokeSession, allow } from "../lib/auth.js";
+import { PIN_RE, MAX_FAILED, makeSecret, verifySecret, assertNotLocked, registerFailure, issueSession, parseToken, revokeSession, allow } from "../lib/auth.js";
 import { cleanProgress, mergeProgress } from "../lib/progress.js";
 import { liveStreak, publicStats } from "../lib/score.js";
 import { todayUtc } from "../../shared/daily.js";
@@ -75,7 +75,9 @@ async function login({ name, pin, progress }, ip) {
     assertNotLocked(record.auth, now);
     if (!verifySecret(pin, record.auth.pin)) {
       registerFailure(record.auth, now);
-      return { changed: true, result: { error: new HttpError(401, "Wrong PIN.") } };
+      const left = MAX_FAILED - (record.auth.failed || 0);
+      const msg = record.auth.lockUntil > now ? "Wrong PIN. That name is now locked for 15 minutes." : `Wrong PIN. ${left} ${left === 1 ? "try" : "tries"} left before a 15 minute lock.`;
+      return { changed: true, result: { error: new HttpError(401, msg) } };
     }
     // Anything this device earned before signing in is kept.
     if (progress) record.progress = mergeProgress(record.progress, { ...progress, muted: undefined });

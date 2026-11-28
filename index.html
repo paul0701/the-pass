@@ -21,7 +21,8 @@ button{font-family:inherit;color:inherit}
 #app{position:relative;width:100%;max-width:520px;height:100vh;height:100dvh;display:flex;flex-direction:column;background:linear-gradient(180deg,#2b3036 0%,#434a52 50%,#2b3036 100%);overflow:hidden;padding-top:env(safe-area-inset-top);padding-bottom:calc(env(safe-area-inset-bottom) + var(--badge,0px))}
 #top{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#1e2226;border-bottom:1px solid #000;flex:none}
 #clock{font:700 22px ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:#ffcf7a;letter-spacing:1px;min-width:62px}
-#wave{flex:1;font-size:11px;color:#9aa3ab;text-transform:uppercase;letter-spacing:.08em;line-height:1.25}
+#wave{flex:1;min-width:0;font-size:11px;color:#9aa3ab;text-transform:uppercase;letter-spacing:.08em;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media (max-width:370px){#wave{font-size:9.5px;letter-spacing:.04em}#satwrap{width:70px}}
 #satwrap{width:86px}
 .satlabel{font-size:9px;color:#9aa3ab;display:flex;justify-content:space-between;letter-spacing:.05em}
 #sat{height:7px;background:#12151a;border-radius:4px;overflow:hidden;margin-top:2px}
@@ -404,7 +405,12 @@ function localStreak(today){
   return d.last===today||d.last===y ? d.streak : 0;
 }
 const emptyStats = () => ({days:0, finished:0, total:0, best:0, bestStreak:0, dist:[0,0,0,0,0,0]});
+// Preview days before launch don't carry over into the real thing.
+function clearPreview(today){
+  if(today>=LAUNCH && save.dstreak && save.dstreak.last && save.dstreak.last<LAUNCH){ save.dstreak=null; save.dstats=null; writeSave(); }
+}
 function markLocalPlayed(date){
+  clearPreview(date);
   const d=save.dstreak||{last:null,streak:0};
   const st=save.dstats||(save.dstats=emptyStats());
   if(d.last!==date){
@@ -420,6 +426,7 @@ function markLocalFinished(pct){
 }
 /* Wordle-style stats: from the server when signed in (follows you between devices), from this phone otherwise. */
 function myStats(){
+  clearPreview(todayUtc());
   if(NET.token&&NET.stats) return NET.stats;
   const st=save.dstats||emptyStats();
   return {played:st.days, finished:st.finished, avg:st.finished?Math.round(st.total/st.finished):0, best:st.best,
@@ -794,7 +801,7 @@ function newbieNudge(){
   const idle=open.find(t=>G.t-t.born>6 && t.dishes.every(d=>d.state==='unfired'));
   const busy=open.some(t=>t.dishes.some(d=>d.state==='cooking'));
   if(idle && busy){
-    say('HEAD CHEF','Don\'t wait, chef. Fire table '+idle.table+' while that one cooks.');
+    say('HEAD CHEF','Don\'t wait. Fire table '+idle.table+' now.');
     G.nudges=(G.nudges||0)+1; G.nudgeAt=G.t+25;
   }
 }
@@ -811,6 +818,7 @@ function sendHelp(k){
   if(G.help){ toast('Larder is already on the '+ST[G.help.key].tag.toLowerCase()+'.',true); return; }
   if(!G.helps){ toast('No more spare hands tonight.',true); A.err(); return; }
   if(G.stn.larder.length){ say('larder','Still got starters on, chef!'); A.err(); return; }
+  if(G.stn[k].length<ST[k].free-1){ say('larder',ST[k].tag.charAt(0)+ST[k].tag.slice(1).toLowerCase()+'\'s fine, chef. I\'ll stay put.'); return; }
   G.help={key:k, until:G.t+HELP_SECS}; G.helps--; G.helpUsed++;
   say('larder','Jumping on '+ST[k].tag.toLowerCase()+', chef!'); A.tap();
 }
@@ -819,14 +827,15 @@ function sendHelp(k){
    Short guided services. The head chef talks you through each one live, one skill at a time. */
 function coach(text, now){
   if(!G||G.kind!=='stage') return;
-  if(now){ G.coachQ=[]; G.coachUntil=0; }
+  // An urgent line jumps the queue, but whatever is showing still gets a couple of seconds to be read.
+  if(now){ G.coachQ=[]; G.coachUntil=Math.min(G.coachUntil,(G.coachShown||0)+2.2); }
   G.coachQ.push(text);
 }
 function coachTick(){
   if(!G.coachQ.length || G.t<G.coachUntil) return;
   const tx=G.coachQ.shift();
   coachTx.textContent=tx; coachTx.style.animation='none'; void coachTx.offsetWidth; coachTx.style.animation='';
-  G.coachUntil=G.t+Math.max(2.4,tx.length*.055);
+  G.coachShown=G.t; G.coachUntil=G.t+Math.max(2.4,tx.length*.055);
 }
 function stageEvent(name){
   if(!G||G.kind!=='stage'||!G.sd.on||!G.sd.on[name]) return;
@@ -945,7 +954,8 @@ const STAGES = [
      tick(dt,open){
        const t=open[0]; if(!t||t.splitAt!=null||G.sv.hint) return;
        const ris=byAbbr(t,'RIS'), dying=t.dishes.some(d=>d.state==='plated'&&!d.dead&&d.q<75);
-       if(ris.state==='cooking' && ris.rem>18 && dying){ G.sv.hint=1; coach('Risotto\'s dragging. The rest is dying. Hit the amber SPLIT.',true); }
+       // Cue the split only once the risotto can land inside the grace window, so obeying chef is always a clean split.
+       if(ris.state==='cooking' && ris.rem/rate('pan',G.stn.pan.length)<=GRACE-5 && dying){ G.sv.hint=1; coach('Risotto\'s dragging. The rest is dying. Hit the amber SPLIT.',true); }
      },
      split(){ coach('Split. Clock\'s on. Twenty-eight seconds to land that risotto.',true); },
      ready(t){ if(t.splitAt!=null) coach('Risotto\'s up. Send it.',true); },
@@ -1138,7 +1148,7 @@ function dailyBrief(){
   let h='<div class="card"><h1>DAILY</h1><div class="sub">'+dnum(info.number)+' · '+info.name+' · '+niceDate(info.date)+'</div><div class="rule"></div>';
   h+='<div class="verdict">'+info.title+'.</div>';
   h+='<div class="prose"><p><b>How it works</b></p><p>1. Tap a dish to fire it. <b>Fire as many tickets at once as you can handle.</b> Don\'t wait for one to finish.</p><p>2. Cooked plates land in the window and start cooling straight away.</p><p>3. When a table\'s up, hit <b>SEND</b>. Hot food and quick tables score.</p>';
-  h+='<div class="rule"></div><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it on the bus stop.</p>';
+  h+='<div class="rule"></div><p>Everyone gets the same service today. You get one go, and it counts from the moment you start, so don\'t start it at the bus stop.</p>';
   h+='<p>Then share your card and see how everyone else got on.</p>';
   h+=NET.token ? '<p>Signed in as <b>'+esc(NET.name)+'</b>, so your streak and stats follow you to any device.</p>' : '<p>Your streak and stats are kept on this phone. <a href="#" data-act="account">Sign in</a> if you want them on every device.</p>';
   h+='</div><button class="go" data-act="dailygo">START THE SERVICE</button><button class="go alt" data-act="home">NOT YET</button></div>';
@@ -1238,20 +1248,22 @@ function dailyReportFromSave(){
    An original roasting head chef. Swearing is implied, never spelled out. Picked from the seed and score, so the
    same result always gets the same line (it goes on the share card). */
 /* Paul's post-service comments, in three score bands. A few only make sense when they're true, so they carry a check. */
+const vFresh = () => G.sentQs.length ? G.sentQs.reduce((a,b)=>a+b,0)/G.sentQs.length : 0;
+const vLate = () => G.scores.length ? G.scores.filter(x=>x.late).length/G.scores.length : 0;
 const CHEF_COMMENTS = {
   low:[
     ['Honestly, that was an absolute car crash from start to finish. I\'ve seen better coordination at a kids\' birthday party, so wake up tomorrow or don\'t bother putting your whites on.'],
-    ['Bloody hell, what were you doing on that pass tonight? The fish was rubber, the garnish was lukewarm, and you were moving like you were wading through treacle.'],
+    ['Bloody hell, what were you doing on that pass tonight? The fish was rubber, the garnish was lukewarm, and you were moving like you were wading through treacle.', ()=>vFresh()<80],
     ['If I served that food to my dog, he\'d walk out and leave a bad review. You need to taste everything before it leaves your station because tonight was embarrassing.'],
     ['That service was a complete disaster, and the worst part is you stopped talking to each other the second the tickets started rolling in. A silent kitchen is a dead kitchen.'],
     ['Look at the state of this kitchen. It looks like a bomb went off in a skip. Clean it down properly, go home, and ask yourself if you actually want to be a chef.'],
-    ['You sent out raw chicken and overcooked risotto on the same table. Are you trying to close my restaurant down, or are you just asleep at the wheel?'],
-    ['I had diners waiting forty minutes for starters while you lot stood around staring at the ticket rail like it was written in ancient Greek. Pathetic.'],
+    ['You sent out raw chicken and overcooked risotto on the same table. Are you trying to close my restaurant down, or are you just asleep at the wheel?', ()=>false /* no chicken on the main menu, no risotto on Sunday */],
+    ['I had diners waiting forty minutes for starters while you lot stood around staring at the ticket rail like it was written in ancient Greek. Pathetic.', ()=>vLate()>.35],
     ['Every single sauce tonight was either split or tasted like dishwater. If you can\'t respect basic ingredients, you have no business standing behind my stoves.'],
     ['Don\'t give me excuses about being short-prepped. You had all afternoon to get your mise en place sorted. You let the whole dining room down tonight.'],
     ['My gran could plate faster than that, and she\'s not even with us anymore. Get your head in the game, because I will not sit through another night like that.'],
     ['That was sloppy, lazy cooking, plain and simple. You cut corners when it got busy, and every single guest out there could taste it.'],
-    ['You\'re lucky we didn\'t have a full house tonight, because if we\'d had another twenty covers, the whole place would\'ve collapsed. Sort it out.']
+    ['You\'re lucky we didn\'t have a full house tonight, because if we\'d had another twenty covers, the whole place would\'ve collapsed. Sort it out.', ()=>false /* every night is a full book */]
   ],
   mid:[
     ['Look, we got through it and most of the plates were solid, but your timings on the mains fell apart during the eight o\'clock rush. Tighten that up tomorrow.'],
@@ -1317,6 +1329,8 @@ function verdictFor(rating){
 function endGame(reason){
   if(G.over) return; G.over=true;
   G.tickets.forEach(t=>{ if(!t.done) walkout(t,true); });
+  // Walking off the daily: every table still to come counts as lost, so leaving early never beats playing on.
+  if(G.kind==='daily' && reason==='left') for(let i=G.pi;i<G.plan.length;i++){ G.scores.push({s:0,w:1,wave:G.plan[i].w.name,table:0,late:true}); G.walked++; G.grid+='r'; }
   let sw=0,sv=0; G.scores.forEach(x=>{ sw+=x.w; sv+=x.s*x.w; });
   const rating = sw?Math.round(sv/sw):0;
   const avgT = G.waits.length ? G.waits.reduce((a,b)=>a+b,0)/G.waits.length : 0;
@@ -1621,7 +1635,7 @@ const Intro = (function(){
 })();
 
 /* ---------- boot ---------- */
-loadSave(); A.muted=!!save.muted; setMuteIcon(); buildBrigade();
+loadSave(); clearPreview(todayUtc()); A.muted=!!save.muted; setMuteIcon(); buildBrigade();
 let lastTs=0, acc=0;
 function frame(ts){
   requestAnimationFrame(frame);
@@ -1637,12 +1651,12 @@ const Online = (function(){
   try{ const s=JSON.parse(localStorage.getItem(SESSION_KEY)||'null'); if(s&&s.token){ NET.token=s.token; NET.name=s.name; } }catch(e){}
   const keep = () => { try{ if(NET.token) localStorage.setItem(SESSION_KEY,JSON.stringify({token:NET.token,name:NET.name})); else localStorage.removeItem(SESSION_KEY); }catch(e){} };
   async function api(path, body, method){
-    if(!online) return {ok:false, status:0, error:'Offline.'};
+    if(!online) return {ok:false, status:0, data:{}, error:'Can\'t reach the pass. Check your connection.'};
     const headers={'Content-Type':'application/json'};
     if(NET.token) headers.Authorization='Bearer '+NET.token;
     let res;
     try{ res=await fetch(path,{method:method||(body?'POST':'GET'),headers,body:body?JSON.stringify(body):undefined,cache:'no-store'}); }
-    catch(e){ return {ok:false,status:0,error:'Can\'t reach the pass. Check your connection.'}; }
+    catch(e){ return {ok:false,status:0,data:{},error:'Can\'t reach the pass. Check your connection.'}; }
     const data=await res.json().catch(()=>({}));
     if(res.status===401 && NET.token && !(body&&body.action)){ NET.token=null; NET.name=null; keep(); }
     return {ok:res.ok, status:res.status, data, error:data.error||('Request failed ('+res.status+').')};
@@ -1663,7 +1677,7 @@ const Online = (function(){
     syncSoon();
     if(res.kind!=='daily') return;
     const r=await api('/api/daily',{action:'finish', date:res.date, pct:res.rating, grid:res.grid, covers:res.covers, tables:res.tables, walked:res.walked,
-      dead:res.dead, refires:res.refires, clean:res.clean, awkward:res.awkward, freshness:res.freshness, avgTicket:res.avgTicket});
+      dead:res.dead, refires:res.refires, clean:res.clean, awkward:res.awkward, freshness:res.freshness, avgTicket:res.avgTicket, left:res.reason==='left'});
     const n=$('#dailyNote');
     if(r.ok){ NET.daily={date:res.date,status:r.data.status}; NET.streak=r.data.streak; NET.stats=r.data.stats; if(n) n.textContent='Saved. Daily streak: '+r.data.streak+' day'+(r.data.streak===1?'':'s')+'.'; }
     else if(n) n.textContent='Result not recorded: '+r.error;
@@ -1693,7 +1707,7 @@ const Online = (function(){
     const name=($('#accName')||{}).value||'', pin=($('#accPin')||{}).value||'';
     const err=$('#accErr'); if(err) err.textContent='...';
     const r=await api('/api/auth',{action,name:name.trim(),pin,progress:progressOf()});
-    if(!r.ok) return account({name, error:r.error, suggestions:r.data.suggestions});
+    if(!r.ok) return account({name, error:r.error, suggestions:(r.data||{}).suggestions});
     NET.token=r.data.token; NET.name=r.data.name; NET.streak=r.data.streak||0; NET.stats=r.data.stats||null; keep();
     mergeProgress(r.data.progress);
     await refresh();

@@ -62,7 +62,8 @@ async function finish(req, body) {
   const attempt = await updateJson(dailyKey(date, me.id), (a) => {
     if (!a) throw new HttpError(409, "No service was started today, so there's nothing to record.");
     if (a.finished) throw new HttpError(409, "Today's result is already in.");
-    if (now - a.startedAt < MIN_PLAY_MS) throw new HttpError(400, "That was quicker than a service can run.");
+    // Leaving the pass early is allowed (the client counts every table still to come as lost).
+    if (body.left !== true && now - a.startedAt < MIN_PLAY_MS) throw new HttpError(400, "That was quicker than a service can run.");
     if (now - a.startedAt > MAX_PLAY_MS) throw new HttpError(400, "That service ran too long to count.");
     Object.assign(a, { finished: true, pct, stars: starCount(pct), grid, finishedAt: now, ...extra });
     return { changed: true, value: a, result: a };
